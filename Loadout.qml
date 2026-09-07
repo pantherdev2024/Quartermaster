@@ -31,9 +31,9 @@ Item {
   property string statusText: ""
 
   // Cell size: the inventory cells shrink until the tallest category fits
-  // its column with the dock, so no screen ever has to scroll a slot list.
-  // The column's fixed costs are the tabs, the margins around the list, and
-  // the header row and frame padding of every slot and the dock.
+  // its column with the item data panel, so no screen ever has to scroll a
+  // slot list. The column's fixed costs are the tabs, the margins around the
+  // list, the item data panel, and every slot's header row and frame padding.
   readonly property int maxSlotsPerCategory: {
     var counts = {}, m = 0
     for (var i = 0; i < slotDefs.length; i++) {
@@ -44,13 +44,14 @@ Item {
     }
     return m
   }
+  readonly property int itemDataHeight: Style.space(132)
   readonly property int cellSize: {
     var full = Style.space(64)
     var column = leftColumn.height
     if (column <= 0) return full
     var n = root.maxSlotsPerCategory
-    var fixed = Style.space(36 + 22 + 44) + Style.space(42) * (n + 1) + Style.space(16) * (n - 1)
-    var fit = Math.floor((column - fixed) / (n + 1))
+    var fixed = Style.space(36 + 22 + 24) + root.itemDataHeight + Style.space(42) * n + Style.space(16) * (n - 1)
+    var fit = Math.floor((column - fixed) / n)
     return Math.max(Style.space(40), Math.min(full, fit))
   }
 
@@ -489,6 +490,26 @@ Item {
     root.staged = next
   }
 
+  // Hovering a loadout card previews it on the character and leaving the
+  // card puts back whatever was staged before; clicking makes it stick.
+  property var hoverRestore: null
+  function hoverLoadout(loadoutId) {
+    if (root.promptOpen || root.applying) return
+    if (root.hoverRestore === null) root.hoverRestore = root.staged
+    root.stageLoadout(loadoutId)
+  }
+  function unhoverLoadout() {
+    if (root.hoverRestore === null) return
+    root.staged = root.hoverRestore
+    root.hoverRestore = null
+  }
+  function pickLoadout(loadoutId) {
+    if (root.promptOpen || root.applying) return
+    root.hoverRestore = null
+    root.slotIndex = root.loadoutsSlotIndex
+    root.stageLoadout(loadoutId)
+  }
+
   // The fitting as it would be after ENTER: staged where staged, live otherwise.
   function currentFitting() {
     var slots = {}
@@ -619,6 +640,7 @@ Item {
     root.targetScreen = root.resolveTargetScreen(payloadJson)
     root.opened = true
     root.staged = ({})
+    root.hoverRestore = null
     root.slotIndex = 0
     root.modsCursor = 0
     root.statusText = ""
@@ -661,6 +683,7 @@ Item {
       else cmds.push(def.apply.concat([value]))
     }
     if (cmds.length === 0) return
+    root.hoverRestore = null
     root.applying = true
     root.statusText = "applying…"
     applyQueue.queue = cmds
@@ -966,9 +989,10 @@ Item {
         Item {
           id: header
           anchors { top: parent.top; left: parent.left; right: parent.right }
-          height: Style.space(44)
+          height: Style.space(64)
 
           Row {
+            id: titleRow
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(14)
@@ -999,23 +1023,37 @@ Item {
             }
           }
 
-          Text {
-            anchors.centerIn: parent
-            text: {
-              var staged = 0
-              for (var k in root.staged) if (k !== "loadouts" && root.staged[k]) staged++
-              var saved = ((root.inventory && root.inventory.loadouts) || []).length
-              return "SLOTS " + String(root.slotDefs.length - 1).padStart(2, "0")
-                + "   ·   STAGED " + String(staged).padStart(2, "0")
-                + "   ·   LOADOUTS " + String(saved).padStart(2, "0")
+          // The saved loadouts, across the top centre.
+          Item {
+            anchors {
+              left: titleRow.right; leftMargin: Style.space(40)
+              right: statusPill.left; rightMargin: Style.space(40)
+              top: parent.top; bottom: parent.bottom
             }
-            color: root.muted
-            font.family: root.uiFont
-            font.pixelSize: Style.font.caption
-            font.letterSpacing: 2.5
+
+            Text {
+              id: dockKicker
+              anchors { top: parent.top; horizontalCenter: parent.horizontalCenter }
+              text: {
+                var saved = ((root.inventory && root.inventory.loadouts) || []).length
+                return "SAVED LOADOUTS  " + String(saved).padStart(2, "0")
+              }
+              color: root.onLoadouts ? root.accent : root.muted
+              font.family: root.uiFont
+              font.pixelSize: Style.font.caption
+              font.bold: root.onLoadouts
+              font.letterSpacing: 2.5
+            }
+
+            LoadoutDock {
+              anchors { top: dockKicker.bottom; topMargin: Style.space(6); left: parent.left; right: parent.right }
+              height: implicitHeight
+              host: root
+            }
           }
 
           TechFrame {
+            id: statusPill
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             width: statusLabel.implicitWidth + Style.space(28)
@@ -1128,39 +1166,27 @@ Item {
               font.letterSpacing: 1.5
             }
 
-            // The dock: saved loadouts, pinned to the foot of the column.
-            SlotPanel {
-              id: dock
-              anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-              slotDef: root.slotDefs[root.loadoutsSlotIndex]
-              host: root
-            }
-
-            Rectangle {
-              anchors { left: parent.left; right: parent.right; bottom: dock.top; bottomMargin: Style.space(22) }
-              height: 1
-              color: root.line
-            }
-
             // Item data: what the cursor is on, spelled out — the reference's
-            // description panel. Fills the room between the slots and the dock.
+            // description panel, pinned to the foot of the column at a fixed
+            // height so the slots above it never shift as the cursor moves.
             ItemData {
               id: itemData
-              anchors { left: parent.left; right: parent.right; bottom: dock.top; bottomMargin: Style.space(44) }
+              anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+              height: root.itemDataHeight
               host: root
-              // The description is the first thing to go when the column is
-              // short: every slot shows before any item data does.
-              readonly property real roomForSlots: leftColumn.height - tabs.height - Style.space(22) - Style.space(44) - dock.height
+              // Only ever hidden as a last resort: every slot shows before
+              // any item data does.
+              readonly property real roomForSlots: leftColumn.height - tabs.height - Style.space(22)
               readonly property real slotsNeed: slotList.slotHeights + slotList.minSpacing * Math.max(0, slotList.count - 1)
-              visible: roomForSlots - implicitHeight - Style.space(24) >= slotsNeed
+              visible: roomForSlots - height - Style.space(24) >= slotsNeed
             }
 
             // Slots scroll if a small screen can't fit the whole category.
             Flickable {
               id: slotScroll
-              anchors { left: parent.left; right: parent.right; top: tabs.bottom; bottom: itemData.visible ? itemData.top : dock.top }
+              anchors { left: parent.left; right: parent.right; top: tabs.bottom; bottom: itemData.visible ? itemData.top : parent.bottom }
               anchors.topMargin: Style.space(22)
-              anchors.bottomMargin: itemData.visible ? Style.space(24) : Style.space(44)
+              anchors.bottomMargin: itemData.visible ? Style.space(24) : 0
               contentWidth: width
               contentHeight: slotList.implicitHeight
               clip: true

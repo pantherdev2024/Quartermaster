@@ -58,13 +58,14 @@ TechFrame {
   edgeColor: staged ? warn : (item && item.equipped ? good : (host ? host.line : Color.muted))
   edgeWidth: Style.space(3)
 
-  implicitHeight: body.implicitHeight + Style.space(32)
+  implicitHeight: body.implicitHeight + Style.space(28)
+  clip: true
 
   Column {
     id: body
-    anchors { left: parent.left; right: parent.right; top: parent.top; margins: Style.space(16) }
+    anchors { left: parent.left; right: parent.right; top: parent.top; margins: Style.space(14) }
     anchors.leftMargin: Style.space(22)
-    spacing: Style.space(8)
+    spacing: Style.space(6)
 
     Item {
       width: parent.width

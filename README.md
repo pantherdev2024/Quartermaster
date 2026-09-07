@@ -8,8 +8,8 @@ for real. Save a fitting as a loadout and swap between them in one move.
 
 - `SUPER + SHIFT + L`, or the Omarchy menu → **Style → Loadout**
 - `TAB` / `SHIFT+TAB` (or `1` `2` `3`) switch equipment category
-- `↑ ↓` move between slots (the saved-loadouts dock is always the last stop),
-  `← →` browse that slot's inventory
+- `↑ ↓` move between slots (the saved-loadouts row across the top is always
+  the last stop), `← →` browse that slot's inventory
 - On BAR MODS, `← →` only move the cursor: `SPACE` toggles the widget under
   it on or off, `SHIFT + ← →` slides it along the bar
 - `ENTER` equips everything staged, `ESC` discards and closes
@@ -82,12 +82,16 @@ argument. New slots appear in the character view's callouts automatically.
 
 ## Loadouts
 
-The dock at the foot of the slot list holds saved loadouts. A loadout records
-the fitting as it stands, staged choices included, as a map of slot id to item
-id in `~/.local/share/omarchy/loadouts/<id>.json`. Moving onto a saved card
-stages every slot it recorded that differs from what is live, so equipping one
-is: pick it, press `ENTER`. The nameplate under the character names the loadout
-it currently represents; a hand-picked change clears that until you save again.
+The row across the top centre holds saved loadouts, one small card each with
+the loadout's theme as its thumbnail and the name you gave it. A loadout
+records the fitting as it stands, staged choices included, as a map of slot id
+to item id in `~/.local/share/omarchy/loadouts/<id>.json`. Hovering a card
+previews it on the character and leaving the card puts back whatever was
+staged; clicking it, or moving onto it with the keyboard, stages every slot it
+recorded that differs from what is live, so equipping one is: pick it, press
+`ENTER`. The card whose fitting the desktop is actually wearing is ringed. The
+nameplate under the character names the loadout it currently represents; a
+hand-picked change clears that until you save again.
 
 ## How it works
 
@@ -137,8 +141,9 @@ well as dark ones.
 manifest.json      overlay plugin declaration
 Loadout.qml        overlay entry: categories, slots, staging, loadouts, apply queue, layout
 CharacterView.qml  the character: viewport, callouts, leader lines, nameplate
+LoadoutDock.qml    the row of saved-loadout cards across the top
 MiniDesktop.qml    the miniature mock desktop
-SlotPanel.qml      one equipment slot + its inventory row (also the loadouts dock)
+SlotPanel.qml      one equipment slot + its inventory row
 ItemData.qml       description panel for whatever the cursor is on
 TechFrame.qml      chamfered frame with heavy edge and corner brackets
 scan.sh            inventory as JSON (widgets and bar layout included)
