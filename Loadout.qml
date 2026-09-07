@@ -10,9 +10,11 @@ import qs.Ui
 
 // Loadout — an RPG equip screen for Omarchy.
 //
-// Left and right columns hold equipment slots; the centre shows a miniature
-// mock desktop painted in whatever is currently staged; the bottom strip is
-// the character sheet, reading real system metrics.
+// Equipment is grouped into categories, picked from a row of glyph pills
+// across the top of the left column. Below the pills, the active category's
+// slots stack down the left; the right column shows a miniature mock desktop
+// painted in whatever is currently staged, plus a detail card for the item
+// under the cursor. The bottom strip is the character sheet: real metrics.
 //
 // Staging is separate from applying on purpose: moving the cursor repaints the
 // preview instantly and touches nothing, and only APPLY runs the omarchy
@@ -35,21 +37,45 @@ Item {
     return u.replace(/^file:\/\//, "").replace(/\/$/, "")
   }
 
-  // ---- Slot definitions ----------------------------------------------
-  // Each slot knows how to find its items, what is currently equipped, and
-  // which command applies it. Adding a slot means adding one entry here.
+  // ---- Categories and slots ------------------------------------------
+  // OUTFIT is what the desktop wears, CHASSIS is the frame it hangs on, and
+  // CYBERWARE is the tooling wired into it. A slot's `apply` is the command
+  // prefix; the staged item id is appended as the final argument. Adding a
+  // slot means one entry here and a matching branch in itemsFor().
+  readonly property var categories: [
+    { id: "outfit",    label: "OUTFIT",    icon: "󰩻" },
+    { id: "chassis",   label: "CHASSIS",   icon: "󰕮" },
+    { id: "cyberware", label: "CYBERWARE", icon: "󰘚" }
+  ]
+
   readonly property var slotDefs: [
-    { id: "theme",      label: "THEME",      side: "left",  apply: "omarchy-theme-set" },
-    { id: "background", label: "BACKGROUND", side: "left",  apply: "omarchy-theme-bg-set" },
-    { id: "font",       label: "FONT",       side: "right", apply: "omarchy-font-set" },
-    { id: "terminal",   label: "TERMINAL",   side: "right", apply: "omarchy-default-terminal" }
+    { id: "theme",          cat: "outfit",    label: "THEME",        icon: "󰏘", apply: ["omarchy-theme-set"] },
+    { id: "background",     cat: "outfit",    label: "BACKGROUND",   icon: "󰸉", apply: ["omarchy-theme-bg-set"] },
+    { id: "font",           cat: "outfit",    label: "FONT",         icon: "󰛖", apply: ["omarchy-font-set"] },
+    { id: "barPosition",    cat: "chassis",   label: "BAR POSITION", icon: "󰍹", apply: ["omarchy-bar", "position"] },
+    { id: "barTransparent", cat: "chassis",   label: "BAR SURFACE",  icon: "󰗌", apply: ["omarchy-bar", "transparent"] },
+    { id: "textSize",       cat: "chassis",   label: "TEXT SIZE",    icon: "󰉡", apply: ["omarchy-display-text-size"] },
+    { id: "terminal",       cat: "cyberware", label: "TERMINAL",     icon: "󰆍", apply: ["omarchy-default-terminal"] },
+    { id: "editor",         cat: "cyberware", label: "EDITOR",       icon: "󰅩", apply: ["omarchy-default-editor"] },
+    { id: "browser",        cat: "cyberware", label: "BROWSER",      icon: "󰖟", apply: ["omarchy-default-browser"] },
+    { id: "agent",          cat: "cyberware", label: "AGENT",        icon: "󰚩", apply: [pluginDir + "/agent-set.sh"] }
   ]
 
   // Staged selection per slot id. Empty means "unchanged from what's live".
   property var staged: ({})
 
+  // The cursor is a single index into slotDefs; the active category is
+  // whatever category that slot belongs to, so there is no second piece of
+  // state to keep in sync.
   property int slotIndex: 0
   readonly property var currentSlot: slotDefs[Math.max(0, Math.min(slotDefs.length - 1, slotIndex))]
+  readonly property string currentCategory: currentSlot.cat
+  readonly property int currentCategoryIndex: {
+    for (var i = 0; i < categories.length; i++)
+      if (categories[i].id === currentCategory) return i
+    return 0
+  }
+  readonly property var visibleSlots: slotDefs.filter(function(d) { return d.cat === root.currentCategory })
 
   function itemsFor(slotId) {
     var inv = root.inventory
@@ -57,6 +83,12 @@ Item {
     if (slotId === "theme") return inv.themes || []
     if (slotId === "font") return inv.fonts || []
     if (slotId === "terminal") return inv.terminals || []
+    if (slotId === "editor") return inv.editors || []
+    if (slotId === "browser") return inv.browsers || []
+    if (slotId === "agent") return inv.agents || []
+    if (slotId === "barPosition") return inv.barPositions || []
+    if (slotId === "barTransparent") return inv.barTransparency || []
+    if (slotId === "textSize") return inv.textSizes || []
     if (slotId === "background") {
       // Backgrounds belong to whichever theme is staged, so this slot's
       // contents change as the theme cursor moves.
@@ -67,6 +99,18 @@ Item {
       })
     }
     return []
+  }
+
+  // Selected item object for a slot (staged if any, else equipped, else first).
+  function selectedItem(slotId) {
+    var items = root.itemsFor(slotId)
+    var i = root.selectedIndexFor(slotId)
+    return i < items.length ? items[i] : null
+  }
+
+  function selectedId(slotId, fallback) {
+    var it = root.selectedItem(slotId)
+    return it ? it.id : fallback
   }
 
   // The theme object driving the whole preview: staged if the user has moved
@@ -80,6 +124,13 @@ Item {
     return themes.length > 0 ? themes[0] : null
   }
 
+  // The theme that is actually live, used to colour the chrome's gauges.
+  readonly property var liveThemeObject: {
+    var themes = (root.inventory && root.inventory.themes) || []
+    for (var i = 0; i < themes.length; i++) if (themes[i].equipped) return themes[i]
+    return null
+  }
+
   readonly property string previewWallpaper: {
     var staged = root.staged["background"]
     if (staged) return staged
@@ -88,13 +139,11 @@ Item {
     return ""
   }
 
-  readonly property string previewFont: {
-    var staged = root.staged["font"]
-    if (staged) return staged
-    var fonts = (root.inventory && root.inventory.fonts) || []
-    for (var i = 0; i < fonts.length; i++) if (fonts[i].equipped) return fonts[i].id
-    return "monospace"
-  }
+  readonly property string previewFont: root.selectedId("font", "monospace")
+  readonly property string previewBarPosition: root.selectedId("barPosition", "top")
+  readonly property bool previewBarTransparent: root.selectedId("barTransparent", "false") === "true"
+  readonly property real previewFontScale: Number(root.selectedId("textSize", "12")) / 12
+  readonly property string previewTerminal: root.selectedId("terminal", "")
 
   // True when anything is staged that differs from the live system.
   readonly property bool dirty: {
@@ -129,9 +178,25 @@ Item {
     root.stageCurrent(items[i].id)
   }
 
+  // Up/down stays inside the active category and wraps.
   function moveSlot(delta) {
-    var n = root.slotDefs.length
-    root.slotIndex = (root.slotIndex + delta + n) % n
+    var ids = []
+    for (var i = 0; i < root.slotDefs.length; i++)
+      if (root.slotDefs[i].cat === root.currentCategory) ids.push(i)
+    var pos = ids.indexOf(root.slotIndex)
+    if (pos < 0) pos = 0
+    root.slotIndex = ids[(pos + delta + ids.length) % ids.length]
+  }
+
+  function selectCategory(catId) {
+    for (var i = 0; i < root.slotDefs.length; i++) {
+      if (root.slotDefs[i].cat === catId) { root.slotIndex = i; return }
+    }
+  }
+
+  function moveCategory(delta) {
+    var n = root.categories.length
+    root.selectCategory(root.categories[(root.currentCategoryIndex + delta + n) % n].id)
   }
 
   // ---- Lifecycle ------------------------------------------------------
@@ -201,7 +266,7 @@ Item {
       var def = root.slotDefs[i]
       var value = root.staged[def.id]
       if (!value) continue
-      cmds.push([def.apply, value])
+      cmds.push(def.apply.concat([value]))
     }
     if (cmds.length === 0) return
     root.applying = true
@@ -267,29 +332,42 @@ Item {
     onTriggered: if (!statsProc.running) statsProc.running = true
   }
 
-  // ---- Palette of the previewed theme ---------------------------------
-  function pc(key, fallback) {
-    var t = root.stagedThemeObject
+  // ---- Chrome palette --------------------------------------------------
+  // The screen's own chrome follows the live Omarchy theme through the shared
+  // Color/Style singletons, exactly like the stock menu and clipboard
+  // overlays. Only the MiniDesktop repaints in the *staged* theme — that is
+  // the preview, and the chrome around it should hold still while you browse.
+  readonly property color fg: Color.menu.text
+  readonly property color muted: Color.muted
+  readonly property color accent: Color.accent
+  readonly property color warn: Color.urgent
+  readonly property string uiFont: Style.font.menuFamily
+
+  // Gauge hues come from the live theme's full palette (the shared Color
+  // singleton only carries the foundational four), falling back to accent.
+  function lc(key, fallback) {
+    var t = root.liveThemeObject
     var v = (t && t.colors) ? t.colors[key] : undefined
     return (typeof v === "string" && v.length > 0) ? v : fallback
   }
+  readonly property color good: lc("green", root.accent)
 
-  readonly property color previewBg: pc("background", Color.background)
-  readonly property color previewFg: pc("foreground", Color.foreground)
-  readonly property color previewAccent: pc("accent", Color.accent)
-  readonly property color previewMuted: pc("dark_foreground", Color.muted)
-  readonly property string uiFont: Style.font.menuFamily
+  // Opaque on purpose. A partially transparent child on this layer surface
+  // has its alpha dropped and paints nothing, so the backdrop takes the
+  // menu surface colour with its alpha companion forced to 1.
+  readonly property color backdrop: Qt.rgba(Color.menu.background.r, Color.menu.background.g, Color.menu.background.b, 1)
 
   // Panels are the background with a little foreground mixed in, rather than a
   // fixed black wash. Themes ship both light and dark modes, and a black wash
-  // silently collapses to grey-on-grey under a light theme like Lupine.
+  // silently collapses to grey-on-grey under a light theme like Lupine. The
+  // mix amounts are the theme's own control fill alphas, so a theme that
+  // tunes [controls] in shell.toml tunes these too.
   function lift(amount) {
-    return Qt.tint(root.previewBg,
-      Qt.rgba(root.previewFg.r, root.previewFg.g, root.previewFg.b, amount))
+    return Qt.tint(root.backdrop, Qt.rgba(root.fg.r, root.fg.g, root.fg.b, amount))
   }
-  readonly property color paneBg: lift(0.07)
-  readonly property color paneBgFocused: lift(0.13)
-  readonly property color paneBorder: lift(0.22)
+  readonly property color paneBg: lift(Style.normalFillAlpha)
+  readonly property color paneBgFocused: lift(Style.hoverFillAlpha)
+  readonly property color trackColor: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.12)
 
   // Input is kibibytes: 1G is 1024*1024 KiB, 1T is 1024 times that again.
   function fmtBytes(kb) {
@@ -317,14 +395,9 @@ Item {
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
     exclusionMode: ExclusionMode.Ignore
 
-    // Opaque on purpose. A translucent backdrop is both wrong for the genre
-    // (equip screens take over the display) and unreliable here: a partially
-    // transparent child on this layer surface has its alpha dropped and paints
-    // nothing, while an opaque one composites correctly. Painting it in the
-    // previewed theme's own darkest tone means the backdrop re-themes too.
     Rectangle {
       anchors.fill: parent
-      color: root.previewBg
+      color: root.backdrop
     }
 
     MouseArea {
@@ -339,25 +412,30 @@ Item {
 
       Keys.priority: Keys.BeforeItem
       Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape) {
+        var k = event.key
+        var shift = event.modifiers & Qt.ShiftModifier
+        if (k === Qt.Key_Escape) {
           root.dismiss()
-          event.accepted = true
-        } else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) {
+        } else if (k === Qt.Key_Up || k === Qt.Key_K) {
           root.moveSlot(-1)
-          event.accepted = true
-        } else if (event.key === Qt.Key_Down || event.key === Qt.Key_J) {
+        } else if (k === Qt.Key_Down || k === Qt.Key_J) {
           root.moveSlot(1)
-          event.accepted = true
-        } else if (event.key === Qt.Key_Left || event.key === Qt.Key_H) {
+        } else if (k === Qt.Key_Left || k === Qt.Key_H) {
           root.moveWithinSlot(-1)
-          event.accepted = true
-        } else if (event.key === Qt.Key_Right || event.key === Qt.Key_L) {
+        } else if (k === Qt.Key_Right || k === Qt.Key_L) {
           root.moveWithinSlot(1)
-          event.accepted = true
-        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+        } else if (k === Qt.Key_Tab || k === Qt.Key_E || k === Qt.Key_BracketRight) {
+          root.moveCategory(1)
+        } else if (k === Qt.Key_Backtab || k === Qt.Key_Q || k === Qt.Key_BracketLeft) {
+          root.moveCategory(-1)
+        } else if (k >= Qt.Key_1 && k < Qt.Key_1 + root.categories.length) {
+          root.selectCategory(root.categories[k - Qt.Key_1].id)
+        } else if (k === Qt.Key_Return || k === Qt.Key_Enter) {
           root.applyStaged()
-          event.accepted = true
+        } else {
+          return
         }
+        event.accepted = true
       }
 
       // Swallow clicks on the content so they don't reach the dismiss layer.
@@ -366,21 +444,21 @@ Item {
       Item {
         id: content
         anchors.fill: parent
-        anchors.margins: Math.min(48, parent.width * 0.04)
+        anchors.margins: Math.min(Style.space(48), parent.width * 0.04)
 
         // ---- Header ----------------------------------------------------
         Item {
           id: header
           anchors { top: parent.top; left: parent.left; right: parent.right }
-          height: 44
+          height: Style.space(44)
 
           Text {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             text: "LOADOUT"
-            color: root.previewAccent
+            color: root.accent
             font.family: root.uiFont
-            font.pixelSize: 26
+            font.pixelSize: Style.font.display
             font.bold: true
             font.letterSpacing: 6
           }
@@ -388,9 +466,9 @@ Item {
           Text {
             anchors.centerIn: parent
             text: root.stagedThemeObject ? root.stagedThemeObject.name.toUpperCase() : ""
-            color: root.previewFg
+            color: root.fg
             font.family: root.uiFont
-            font.pixelSize: 15
+            font.pixelSize: Style.font.title
             font.letterSpacing: 3
           }
 
@@ -398,115 +476,114 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             text: root.statusText || (root.dirty ? "UNAPPLIED CHANGES" : "SYNCED")
-            color: root.dirty ? root.pc("yellow", "#f9e2af") : root.previewMuted
+            color: root.dirty ? root.warn : root.muted
             font.family: root.uiFont
-            font.pixelSize: 12
+            font.pixelSize: Style.font.body
             font.letterSpacing: 2
           }
         }
 
         // ---- Stats strip (bottom) --------------------------------------
-        Rectangle {
+        BorderSurface {
           id: statsStrip
           anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
-          height: 108
+          height: Style.space(108)
           color: root.paneBg
-          radius: 6
-          border.width: 1
-          border.color: root.paneBorder
+          radius: Style.cornerRadius
+          borderSpec: Border.controlSpec("normal", root.fg, root.accent)
 
           Row {
-            anchors { fill: parent; margins: 18 }
-            spacing: 26
+            anchors { fill: parent; margins: Style.space(18) }
+            spacing: Style.space(26)
 
             Gauge {
-              width: 88; height: parent.height
+              width: Style.space(88); height: parent.height
               label: "CPU"
               value: root.stats.cpu ? root.stats.cpu.percent : -1
               readout: (root.stats.cpu ? root.stats.cpu.percent : 0) + "%"
               sub: root.stats.cpu ? root.stats.cpu.cores + "c · " +
                    (root.stats.cpu.temp >= 0 ? root.stats.cpu.temp + "°" : "—") : ""
-              ringColor: root.pc("green", "#a6e3a1")
-              trackColor: Qt.rgba(root.previewFg.r, root.previewFg.g, root.previewFg.b, 0.12)
-              textColor: root.previewFg
-              mutedColor: root.previewMuted
+              ringColor: root.lc("green", root.accent)
+              trackColor: root.trackColor
+              textColor: root.fg
+              mutedColor: root.muted
               fontFamily: root.uiFont
             }
 
             Gauge {
-              width: 88; height: parent.height
+              width: Style.space(88); height: parent.height
               label: "GPU"
               value: root.stats.gpu ? root.stats.gpu.percent : -1
               readout: (root.stats.gpu && root.stats.gpu.percent >= 0 ? root.stats.gpu.percent : 0) + "%"
               sub: root.stats.gpu && root.stats.gpu.temp >= 0 ? root.stats.gpu.temp + "°" : ""
-              ringColor: root.pc("magenta", "#f5c2e7")
-              trackColor: Qt.rgba(root.previewFg.r, root.previewFg.g, root.previewFg.b, 0.12)
-              textColor: root.previewFg
-              mutedColor: root.previewMuted
+              ringColor: root.lc("magenta", root.accent)
+              trackColor: root.trackColor
+              textColor: root.fg
+              mutedColor: root.muted
               fontFamily: root.uiFont
             }
 
             Column {
-              width: 200
+              width: Style.space(200)
               anchors.verticalCenter: parent.verticalCenter
-              spacing: 12
+              spacing: Style.space(12)
 
               Meter {
-                width: parent.width; height: 30
+                width: parent.width; height: Style.space(30)
                 label: "MEMORY"
                 value: root.stats.memory ? root.stats.memory.percent : 0
                 readout: root.stats.memory
                   ? root.fmtBytes(root.stats.memory.usedKb) + " / " + root.fmtBytes(root.stats.memory.totalKb)
                   : "—"
-                fillColor: root.pc("blue", "#89b4fa")
-                trackColor: Qt.rgba(root.previewFg.r, root.previewFg.g, root.previewFg.b, 0.12)
-                textColor: root.previewFg
-                mutedColor: root.previewMuted
+                fillColor: root.lc("blue", root.accent)
+                trackColor: root.trackColor
+                textColor: root.fg
+                mutedColor: root.muted
                 fontFamily: root.uiFont
               }
 
               Meter {
-                width: parent.width; height: 30
+                width: parent.width; height: Style.space(30)
                 label: "DISK"
                 value: root.stats.disk ? root.stats.disk.percent : 0
                 readout: root.stats.disk
                   ? root.fmtBytes(root.stats.disk.usedKb) + " / " + root.fmtBytes(root.stats.disk.totalKb)
                   : "—"
-                fillColor: root.pc("cyan", "#94e2d5")
-                trackColor: Qt.rgba(root.previewFg.r, root.previewFg.g, root.previewFg.b, 0.12)
-                textColor: root.previewFg
-                mutedColor: root.previewMuted
+                fillColor: root.lc("cyan", root.accent)
+                trackColor: root.trackColor
+                textColor: root.fg
+                mutedColor: root.muted
                 fontFamily: root.uiFont
               }
             }
 
             Column {
-              width: 150
+              width: Style.space(150)
               anchors.verticalCenter: parent.verticalCenter
-              spacing: 12
+              spacing: Style.space(12)
 
               Meter {
-                width: parent.width; height: 30
+                width: parent.width; height: Style.space(30)
                 label: "SWAP"
                 value: root.stats.swap ? root.stats.swap.percent : 0
                 readout: root.stats.swap ? root.stats.swap.percent + "%" : "—"
-                fillColor: root.pc("yellow", "#f9e2af")
-                trackColor: Qt.rgba(root.previewFg.r, root.previewFg.g, root.previewFg.b, 0.12)
-                textColor: root.previewFg
-                mutedColor: root.previewMuted
+                fillColor: root.lc("yellow", root.accent)
+                trackColor: root.trackColor
+                textColor: root.fg
+                mutedColor: root.muted
                 fontFamily: root.uiFont
               }
 
               Item {
-                width: parent.width; height: 30
+                width: parent.width; height: Style.space(30)
 
                 Text {
                   anchors.left: parent.left
                   anchors.top: parent.top
                   text: "NETWORK"
-                  color: root.previewMuted
+                  color: root.muted
                   font.family: root.uiFont
-                  font.pixelSize: 9
+                  font.pixelSize: Style.font.caption
                   font.letterSpacing: 1
                 }
 
@@ -517,9 +594,9 @@ Item {
                     ? "↓ " + root.fmtRate(root.stats.network.rxBytesPerSec) +
                       "   ↑ " + root.fmtRate(root.stats.network.txBytesPerSec)
                     : "—"
-                  color: root.previewFg
+                  color: root.fg
                   font.family: root.uiFont
-                  font.pixelSize: 11
+                  font.pixelSize: Style.font.bodySmall
                   font.bold: true
                 }
               }
@@ -527,80 +604,199 @@ Item {
           }
         }
 
-        // ---- Slot columns + preview ------------------------------------
+        // ---- Body: slots left, preview right ---------------------------
         Item {
+          id: body
           anchors {
-            top: header.bottom; topMargin: 16
-            bottom: statsStrip.top; bottomMargin: 16
+            top: header.bottom; topMargin: Style.space(16)
+            bottom: statsStrip.top; bottomMargin: Style.space(16)
             left: parent.left; right: parent.right
           }
 
-          readonly property real columnWidth: Math.max(230, width * 0.22)
+          readonly property real gutter: Style.space(32)
+          readonly property real leftWidth: Math.max(Style.space(420), width * 0.42)
 
-          Column {
-            id: leftColumn
-            width: parent.columnWidth
-            anchors { left: parent.left; top: parent.top }
-            spacing: 14
-
-            Repeater {
-              model: root.slotDefs.filter(function(d) { return d.side === "left" })
-              delegate: SlotPanel {
-                required property var modelData
-                width: leftColumn.width
-                slotDef: modelData
-                host: root
-                alignRight: false
-              }
-            }
-          }
-
-          Column {
-            id: rightColumn
-            width: parent.columnWidth
-            anchors { right: parent.right; top: parent.top }
-            spacing: 14
-
-            Repeater {
-              model: root.slotDefs.filter(function(d) { return d.side === "right" })
-              delegate: SlotPanel {
-                required property var modelData
-                width: rightColumn.width
-                slotDef: modelData
-                host: root
-                alignRight: true
-              }
-            }
-          }
-
-          // The centrepiece: a live mock of the desktop as staged.
+          // -- Left column: category pills, then the slot list -----------
           Item {
+            id: leftColumn
+            width: body.leftWidth
+            anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+
+            Row {
+              id: tabs
+              anchors { left: parent.left; top: parent.top }
+              spacing: Style.spacing.md
+
+              Repeater {
+                model: root.categories
+                delegate: Button {
+                  required property var modelData
+                  required property int index
+                  readonly property bool isActive: modelData.id === root.currentCategory
+                  iconText: modelData.icon
+                  iconSize: Style.font.iconLarge
+                  // Only the active pill spells out its name, like the tab
+                  // strip in the reference; the rest stay as glyphs.
+                  text: isActive ? modelData.label : ""
+                  selected: isActive
+                  bordered: true
+                  foreground: root.fg
+                  accent: root.accent
+                  fontFamily: root.uiFont
+                  fontSize: Style.font.body
+                  horizontalPadding: isActive ? Style.spacing.controlPaddingX + Style.space(4) : Style.spacing.controlPaddingX
+                  verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+                  tooltipText: isActive ? "" : modelData.label + "  [" + (index + 1) + "]"
+                  onClicked: root.selectCategory(modelData.id)
+                }
+              }
+            }
+
+            Text {
+              anchors { left: tabs.right; leftMargin: Style.space(14); verticalCenter: tabs.verticalCenter }
+              text: (root.currentCategoryIndex + 1) + " / " + root.categories.length
+              color: root.muted
+              font.family: root.uiFont
+              font.pixelSize: Style.font.caption
+              font.letterSpacing: 1
+            }
+
+            // Slots scroll if a small screen can't fit the whole category.
+            Flickable {
+              id: slotScroll
+              anchors { left: parent.left; right: parent.right; top: tabs.bottom; bottom: parent.bottom }
+              anchors.topMargin: Style.space(18)
+              contentWidth: width
+              contentHeight: slotList.implicitHeight
+              clip: true
+              boundsBehavior: Flickable.StopAtBounds
+
+              Column {
+                id: slotList
+                width: slotScroll.width
+                spacing: Style.space(14)
+
+                Repeater {
+                  model: root.visibleSlots
+                  delegate: SlotPanel {
+                    required property var modelData
+                    width: slotList.width
+                    slotDef: modelData
+                    host: root
+                  }
+                }
+              }
+            }
+          }
+
+          // -- Right column: the mock desktop, the item card, the hints --
+          Item {
+            id: rightColumn
             anchors {
-              left: leftColumn.right; leftMargin: 28
-              right: rightColumn.left; rightMargin: 28
-              top: parent.top; bottom: parent.bottom
+              left: leftColumn.right; leftMargin: body.gutter
+              right: parent.right; top: parent.top; bottom: parent.bottom
             }
 
             MiniDesktop {
               id: preview
-              anchors.centerIn: parent
-              width: Math.min(parent.width, parent.height * (16 / 9))
+              anchors { top: parent.top; horizontalCenter: parent.horizontalCenter }
+              width: Math.min(parent.width, (parent.height * 0.68) * (16 / 9))
               height: width * (9 / 16)
 
               colors: root.stagedThemeObject ? root.stagedThemeObject.colors : ({})
               wallpaper: root.previewWallpaper
               fontFamily: root.previewFont
               themeName: root.stagedThemeObject ? root.stagedThemeObject.name : ""
+              terminalName: root.previewTerminal
+              barPosition: root.previewBarPosition
+              barTransparent: root.previewBarTransparent
+              fontScale: root.previewFontScale
+            }
+
+            // Detail card for the item under the cursor — the reference's
+            // description panel, kept to what we can honestly say about it.
+            BorderSurface {
+              id: detail
+              anchors {
+                top: preview.bottom; topMargin: Style.space(18)
+                left: preview.left; right: preview.right
+              }
+              height: detailColumn.implicitHeight + Style.space(28)
+              color: root.paneBg
+              radius: Style.cornerRadius
+              borderSpec: Border.controlSpec("normal", root.fg, root.accent)
+
+              readonly property var item: root.selectedItem(root.currentSlot.id)
+              readonly property bool itemStaged: root.staged[root.currentSlot.id] ? true : false
+
+              Column {
+                id: detailColumn
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Style.space(14) }
+                spacing: Style.space(6)
+
+                Row {
+                  spacing: Style.space(10)
+                  Text {
+                    text: root.currentSlot.icon
+                    color: root.accent
+                    font.family: root.uiFont
+                    font.pixelSize: Style.font.iconLarge
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+                  Text {
+                    text: root.currentSlot.label
+                    color: root.muted
+                    font.family: root.uiFont
+                    font.pixelSize: Style.font.caption
+                    font.letterSpacing: 2
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+                  Text {
+                    visible: detail.item ? true : false
+                    text: detail.itemStaged ? "STAGED" : (detail.item && detail.item.equipped ? "EQUIPPED" : "")
+                    color: detail.itemStaged ? root.warn : root.good
+                    font.family: root.uiFont
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                    font.letterSpacing: 2
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+                }
+
+                Text {
+                  width: parent.width
+                  text: detail.item ? detail.item.name : "Nothing available"
+                  color: root.fg
+                  font.family: root.uiFont
+                  font.pixelSize: Style.font.heading
+                  font.bold: true
+                  elide: Text.ElideRight
+                }
+
+                Text {
+                  width: parent.width
+                  text: {
+                    var it = detail.item
+                    if (!it) return ""
+                    if (it.path) return it.path
+                    return root.currentSlot.apply.join(" ") + " " + it.id
+                  }
+                  color: root.muted
+                  font.family: root.uiFont
+                  font.pixelSize: Style.font.bodySmall
+                  elide: Text.ElideMiddle
+                }
+              }
             }
 
             Text {
-              anchors { horizontalCenter: preview.horizontalCenter; top: preview.bottom; topMargin: 18 }
+              anchors { horizontalCenter: preview.horizontalCenter; bottom: parent.bottom }
               text: root.dirty
                 ? "ENTER  apply for real       ESC  discard"
-                : "↑↓ slot     ←→ browse     ENTER apply     ESC close"
-              color: root.previewMuted
+                : "TAB category     ↑↓ slot     ←→ browse     ENTER apply     ESC close"
+              color: root.muted
               font.family: root.uiFont
-              font.pixelSize: 11
+              font.pixelSize: Style.font.bodySmall
               font.letterSpacing: 2
             }
           }
