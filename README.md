@@ -11,8 +11,8 @@ swap between them in one move.
 - `TAB` / `SHIFT+TAB` (or `1` `2` `3`) switch equipment category
 - `↑ ↓` move between slots (the saved-loadouts row across the top is always
   the last stop), `← →` browse that slot's inventory
-- On BAR MODS, `← →` only move the cursor: `SPACE` toggles the widget under
-  it on or off, `SHIFT + ← →` slides it along the bar
+- BAR MODS has no inventory to browse: `← →` do nothing there and `ENTER`
+  opens its workbench
 - `ENTER` fits the item under the cursor into its slot (or fits a whole
   saved loadout)
 - `D` deploys the fitting for real and closes the screen; clicking the pill
@@ -74,23 +74,26 @@ file the next open folds into the status pill.
 
 ### Bar mods
 
-Bar mods is the one multi-select slot. Its cells are the bar's widgets in bar
-order, with dividers between the left, centre and right sections, then a
-bench of the widgets that are off. Its value is the whole layout as one
-string (`left:a,b|center:c|right:d`), so previewing, fitting, saving and "is
-it live" work exactly as for every other slot, and a saved loadout records
-the entire bar arrangement.
+Bar mods is the one multi-select slot. What it holds is not an item off a row
+but a whole arrangement, so it has no inventory to browse: in its place sits a
+button that opens the workbench, with what the bar currently carries beside it.
+Its value is the whole layout as one string (`left:a,b|center:c|right:d`), so
+previewing, fitting, saving and "is it live" work exactly as for every other
+slot, and a saved loadout records the entire bar arrangement. On the button,
+the item data panel describes the slot rather than a widget: how the fitting
+is spread across the bar and the bench.
 
-`ENTER` on the slot opens the **workbench** in place of the slot list: three
-bins, LEFT, CENTER and RIGHT, holding the widgets in bar order, and a BENCH
-of everything that is off. Drag a tile into a bin, between two tiles, or back
+`ENTER` on the slot, or a click on the button, opens the **workbench** in
+place of the slot list: three bins, LEFT, CENTER and RIGHT, holding the
+widgets in bar order, and a BENCH of everything that is off. Tiles shrink
+until the bins, the bench and their gaps fit the column, so the workbench
+never scrolls. Drag a tile into a bin, between two tiles, or back
 to the bench; or with the keyboard, arrows move across tiles, `1` `2` `3`
 send the tile under the cursor to a bin, `BACKSPACE` benches it, `SHIFT+← →`
 nudge it along, `SPACE` toggles. All of that edits the preview and the mini
 desktop's bar follows. `ENTER` fits the arrangement and closes the
 workbench, `ESC` drops the preview. The bins are data, so another slot could
-open a workbench of its own. On the slot row itself, `SPACE` and `SHIFT+← →`
-still work as shortcuts.
+open a workbench of its own.
 
 Deploying diffs the live layout against the fitted one and runs, in order:
 `omarchy plugin disable` for every widget leaving, `omarchy plugin enable
@@ -103,7 +106,7 @@ Two things it does not do. A widget's layout entry can carry settings (the
 clock's format strings, say); disabling drops the entry, settings and all,
 and re-enabling gets defaults. Loadout warns on such a widget's item data
 but does not preserve the settings. And the spacer, which a bar may carry
-several of, is left out of the cells: it stays wherever it is.
+several of, is left out of the tiles: it stays wherever it is.
 
 The agent slot writes `~/.config/omarchy/defaults/agent` directly rather than
 calling `omarchy-default-agent`, because that command also launches the agent
@@ -177,7 +180,7 @@ CharacterView.qml  the character: viewport, callouts, leader lines, nameplate
 LoadoutDock.qml    the row of saved-loadout cards across the top
 BarWorkbench.qml   the workbench: tiles sorted into labelled bins and a bench
 MiniDesktop.qml    the miniature mock desktop
-SlotPanel.qml      one equipment slot + its inventory row
+SlotPanel.qml      one equipment slot + its inventory row, or its workbench button
 ItemData.qml       description panel for whatever the cursor is on
 TechFrame.qml      chamfered frame with heavy edge and corner brackets
 scan.sh            inventory as JSON (widgets and bar layout included)

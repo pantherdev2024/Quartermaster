@@ -7,6 +7,9 @@ import qs.Commons
 // then the inventory row — an angled frame with a heavy accent edge when the
 // cursor is on it. The selected cell wears corner brackets; an equipped cell
 // carries a green tag bar along its foot.
+//
+// A multi-select slot has no row to browse: its stock is a whole arrangement,
+// laid out in the workbench. It gets a button that opens it instead.
 Item {
   id: root
 
@@ -101,8 +104,96 @@ Item {
       }
     }
 
+    // ---- Workbench button (multi-select slots) ---------------------------
+    TechFrame {
+      visible: root.multi
+      width: parent.width
+      height: Style.space(46)
+      chamfer: Style.space(10)
+      fill: root.host ? (root.focused || openMouse.containsMouse ? root.host.paneBgFocused : root.host.paneBg) : "transparent"
+      stroke: root.focused ? root.accent : (openMouse.containsMouse ? root.fg : root.line)
+      strokeWidth: 1
+      edge: "left"
+      edgeColor: root.staged ? root.warn : (root.focused ? root.accent : root.line)
+      edgeWidth: root.focused ? Style.space(4) : Style.space(2)
+
+      Row {
+        anchors { left: parent.left; leftMargin: Style.space(16); verticalCenter: parent.verticalCenter }
+        spacing: Style.space(8)
+
+        Text {
+          text: "󰅂"
+          color: root.focused ? root.accent : root.muted
+          font.family: root.uiFont
+          font.pixelSize: Style.font.body
+          anchors.verticalCenter: parent.verticalCenter
+        }
+        Text {
+          text: "OPEN WORKBENCH"
+          color: root.focused ? root.accent : root.fg
+          font.family: root.uiFont
+          font.pixelSize: Style.font.caption
+          font.bold: true
+          font.letterSpacing: 2
+          anchors.verticalCenter: parent.verticalCenter
+        }
+      }
+
+      Row {
+        anchors { right: parent.right; rightMargin: Style.space(12); verticalCenter: parent.verticalCenter }
+        spacing: Style.space(10)
+
+        // What the fitting holds, and how it differs from the live bar —
+        // the tag bars the cells used to carry, said in one line.
+        Text {
+          text: root.host ? root.host.barModsSummary : ""
+          color: root.staged ? root.warn : root.muted
+          font.family: root.uiFont
+          font.pixelSize: Style.font.caption
+          font.bold: root.staged
+          font.letterSpacing: 1.5
+          anchors.verticalCenter: parent.verticalCenter
+        }
+
+        TechFrame {
+          width: enterKey.implicitWidth + Style.space(16)
+          height: Style.space(22)
+          chamfer: Style.space(5)
+          cuts: ["tl", "br"]
+          fill: root.host ? root.host.paneBgFocused : "transparent"
+          stroke: root.focused ? root.accent : root.line
+          anchors.verticalCenter: parent.verticalCenter
+          Text {
+            id: enterKey
+            anchors.centerIn: parent
+            text: "ENTER"
+            color: root.focused ? root.accent : root.fg
+            font.family: root.uiFont
+            font.pixelSize: Style.font.caption
+            font.bold: true
+            font.letterSpacing: 1
+          }
+        }
+      }
+
+      MouseArea {
+        id: openMouse
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: {
+          if (!root.host) return
+          root.host.slotIndex = root.host.slotDefs.findIndex(function(d) {
+            return d.id === root.slotDef.id
+          })
+          root.host.openWorkbench()
+        }
+      }
+    }
+
     // ---- Inventory row --------------------------------------------------
     TechFrame {
+      visible: !root.multi
       width: parent.width
       height: root.cellSize + Style.space(14)
       chamfer: Style.space(10)
@@ -143,46 +234,16 @@ Item {
           // Dock cards are wide: thumbnail plus a name and a line of meta.
           readonly property bool wide: root.slotDef.wide === true
           readonly property bool isNew: cell.modelData.isNew === true
-          // Multi cells: off ones are dim and dashed, and the first cell of
-          // each bar section (and of the bench) carries a divider.
-          readonly property bool off: root.multi && cell.modelData.on !== true
-          readonly property bool changed: root.multi && cell.modelData.changed === true
-          readonly property real lead: root.multi && cell.modelData.sectionStart === true ? Style.space(18) : 0
 
-          width: (cell.wide ? Style.space(200) : root.cellSize) + cell.lead
+          width: cell.wide ? Style.space(200) : root.cellSize
           height: list.height
 
           readonly property bool isSelected: cell.index === root.selected
           readonly property bool isEquipped: cell.modelData.equipped === true
-          readonly property bool isFitted: !root.multi && root.fittedId !== "" && String(cell.modelData.id) === root.fittedId
-
-          Item {
-            visible: cell.lead > 0
-            width: cell.lead
-            height: parent.height
-
-            Rectangle {
-              anchors { left: parent.left; leftMargin: Style.space(4); top: parent.top; bottom: parent.bottom }
-              width: 1
-              color: root.line
-            }
-            Text {
-              anchors.centerIn: parent
-              anchors.horizontalCenterOffset: Style.space(2)
-              rotation: -90
-              text: cell.modelData.section === "left" ? "LEFT"
-                : cell.modelData.section === "center" ? "CENTER"
-                : cell.modelData.section === "right" ? "RIGHT" : "BENCH"
-              color: root.muted
-              font.family: root.uiFont
-              font.pixelSize: Style.font.caption - 2
-              font.letterSpacing: 1.5
-            }
-          }
+          readonly property bool isFitted: root.fittedId !== "" && String(cell.modelData.id) === root.fittedId
 
           TechFrame {
             anchors.fill: parent
-            anchors.leftMargin: cell.lead
             chamfer: Style.space(6)
             cuts: ["tr", "bl"]
             fill: cell.isSelected
@@ -190,7 +251,7 @@ Item {
               : (root.host ? root.host.paneBgFocused : "transparent")
             stroke: cell.isSelected ? root.accent : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.18)
             strokeWidth: 1
-            dashed: cell.isNew || cell.off
+            dashed: cell.isNew
             brackets: cell.isSelected
             bracketColor: root.accent
             bracketLength: Style.space(9)
@@ -210,7 +271,6 @@ Item {
 
           Image {
             anchors { top: parent.top; bottom: parent.bottom; left: parent.left; margins: Style.space(5) }
-            anchors.leftMargin: Style.space(5) + cell.lead
             width: cell.wide ? height : parent.width - Style.space(10)
             source: cell.thumbnail
             fillMode: Image.PreserveAspectCrop
@@ -278,8 +338,6 @@ Item {
 
           Text {
             anchors.centerIn: parent
-            anchors.horizontalCenterOffset: cell.lead / 2
-            opacity: cell.off ? 0.45 : 1
             visible: cell.thumbnail.length === 0 && !cell.wide
             text: cell.isFont ? "Aa"
               : cell.glyph ? cell.glyph
@@ -298,11 +356,11 @@ Item {
           // shrunk to a coloured foot so it survives at cell size.
           Rectangle {
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-            anchors.leftMargin: Style.space(6) + cell.lead
+            anchors.leftMargin: Style.space(6)
             anchors.rightMargin: Style.space(3)
             height: Style.space(3)
-            color: cell.changed || cell.isFitted ? root.warn : root.good
-            visible: root.multi ? (cell.modelData.on === true || cell.changed) : (cell.isEquipped || cell.isFitted)
+            color: cell.isFitted ? root.warn : root.good
+            visible: cell.isEquipped || cell.isFitted
           }
 
           MouseArea {
@@ -312,8 +370,7 @@ Item {
               root.host.slotIndex = root.host.slotDefs.findIndex(function(d) {
                 return d.id === root.slotDef.id
               })
-              if (root.multi) root.host.modsCursor = cell.index
-              else root.host.previewItem(cell.modelData.id)
+              root.host.previewItem(cell.modelData.id)
             }
           }
         }

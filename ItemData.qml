@@ -23,8 +23,11 @@ TechFrame {
   readonly property color good: host ? host.good : Color.accent
   readonly property string uiFont: host ? host.uiFont : Style.font.menuFamily
 
+  readonly property bool inWorkbench: host ? host.workbenchOpen : false
   readonly property string kind: slot.id === "theme" ? "theme"
-    : slot.multi ? "mod"
+    // A multi slot has a widget under the cursor only inside the workbench;
+    // from the button outside it, the slot describes itself.
+    : slot.multi ? (inWorkbench ? "mod" : "workbench")
     : slot.id === "font" ? "font"
     : slot.id === "loadouts" ? "loadout"
     : slot.id === "background" ? "background"
@@ -39,6 +42,7 @@ TechFrame {
   }
 
   readonly property string source: {
+    if (kind === "workbench") return (host ? host.barModsSummary : "") + "  ·  ENTER opens the workbench"
     if (!item) return ""
     if (item.isNew) return "S  or  ENTER here  ·  records the fitting as it stands"
     if (kind === "loadout") {
@@ -86,7 +90,9 @@ TechFrame {
 
       Text {
         anchors.right: parent.right
-        text: root.previewed ? "PREVIEW" : root.staged ? "FITTED" : (root.item && root.item.equipped ? "EQUIPPED" : "")
+        text: root.previewed ? "PREVIEW" : root.staged ? "FITTED"
+          : root.kind === "workbench" ? "LIVE"
+          : (root.item && root.item.equipped ? "EQUIPPED" : "")
         color: root.previewed ? root.accent : root.staged ? root.warn : root.good
         font.family: root.uiFont
         font.pixelSize: Style.font.caption
@@ -97,7 +103,10 @@ TechFrame {
 
     Text {
       width: parent.width
-      text: root.item ? root.item.name : "Nothing here"
+      text: root.kind === "workbench" ? (root.slot.label || "").replace(/\b\w+/g, function(w) {
+          return w.charAt(0) + w.substring(1).toLowerCase()
+        })
+        : root.item ? root.item.name : "Nothing here"
       color: root.fg
       font.family: root.kind === "font" && root.item ? root.item.id : root.uiFont
       font.pixelSize: Style.font.heading
@@ -119,6 +128,18 @@ TechFrame {
           border.color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.18)
         }
       }
+    }
+
+    // The slot seen from its button: how the fitting is spread across the
+    // bar, and the summary that the row's tag bars used to carry.
+    Text {
+      visible: root.kind === "workbench"
+      width: parent.width
+      text: root.host ? root.host.barModsBreakdown : ""
+      color: root.muted
+      font.family: root.uiFont
+      font.pixelSize: Style.font.bodySmall
+      elide: Text.ElideRight
     }
 
     // A bar widget: where it sits, what it does, and a warning when its

@@ -290,29 +290,28 @@ Item {
     return out
   }
 
-  function modUnderCursor() {
-    var items = root.itemsFor("barMods")
-    if (items.length === 0) return null
-    return items[Math.max(0, Math.min(items.length - 1, root.modsCursor))]
-  }
   function stageLayout(l, followId) {
     root.previewItem(root.encodeLayout(l))
     var items = root.itemsFor("barMods")
     for (var i = 0; i < items.length; i++) if (items[i].id === followId) { root.modsCursor = i; return }
   }
-  function moveModsCursor(delta) {
-    var n = root.itemsFor("barMods").length
-    if (n === 0) return
-    root.modsCursor = (Math.max(0, Math.min(n - 1, root.modsCursor)) + delta + n) % n
-  }
-  // SPACE and SHIFT+arrows on the slot row act on the widget under the cursor.
-  function toggleMod() {
-    var w = root.modUnderCursor()
-    if (w) root.toggleModId(w.id)
-  }
-  function moveMod(delta) {
-    var w = root.modUnderCursor()
-    if (w) root.nudgeMod(w.id, delta)
+
+  // "LEFT 06 · CENTER 03 · RIGHT 08 · BENCH 05": how the fitting is
+  // distributed, for the item data panel while the workbench is closed and
+  // there is no single widget under the cursor to describe.
+  readonly property string barModsBreakdown: {
+    var want = root.decodeLayout(root.effectiveLayoutString)
+    var total = ((root.inventory && root.inventory.barWidgets) || []).length
+    var parts = [], on = 0
+    for (var i = 0; i < root.sections.length; i++) {
+      var sec = root.sections[i]
+      var n = (want[sec] || []).filter(function(id) { return id !== "omarchy.spacer" }).length
+      on += n
+      parts.push(sec.toUpperCase() + " " + String(n).padStart(2, "0"))
+    }
+    parts.push("BENCH " + String(Math.max(0, total - on)).padStart(2, "0"))
+    // Tight separators: four groups have to fit a narrow panel unelided.
+    return parts.join(" · ")
   }
 
   // "17 ON  +1  −2  ↔1": what the callout and item data say about the fitting.
@@ -715,7 +714,8 @@ Item {
   }
 
   function moveWithinSlot(delta) {
-    if (root.currentSlot.multi) { root.moveModsCursor(delta); return }
+    // A workbench slot has no row to browse; ENTER opens it instead.
+    if (root.currentSlot.multi) return
     var items = root.itemsFor(root.currentSlot.id)
     if (items.length === 0) return
     var i = root.selectedIndexFor(root.currentSlot.id) + delta
@@ -1010,13 +1010,9 @@ Item {
         } else if (k === Qt.Key_Down || k === Qt.Key_J) {
           root.moveSlot(1)
         } else if (k === Qt.Key_Left || k === Qt.Key_H) {
-          if (root.currentSlot.multi && (event.modifiers & Qt.ShiftModifier)) root.moveMod(-1)
-          else root.moveWithinSlot(-1)
+          root.moveWithinSlot(-1)
         } else if (k === Qt.Key_Right || k === Qt.Key_L) {
-          if (root.currentSlot.multi && (event.modifiers & Qt.ShiftModifier)) root.moveMod(1)
-          else root.moveWithinSlot(1)
-        } else if (k === Qt.Key_Space && root.currentSlot.multi) {
-          root.toggleMod()
+          root.moveWithinSlot(1)
         } else if (k === Qt.Key_Tab || k === Qt.Key_E || k === Qt.Key_BracketRight) {
           root.moveCategory(1)
         } else if (k === Qt.Key_Backtab || k === Qt.Key_Q || k === Qt.Key_BracketLeft) {
@@ -1526,7 +1522,7 @@ Item {
                 : [["↑↓←→", "tile"], ["1 2 3", "to bin"], ["⌫", "bench"], ["⇧←→", "nudge"], ["ENTER", "fit"], ["D", "fit + deploy"], ["ESC", "cancel"]]
             if (sel && sel.isNew) return [["ENTER", "save fitting"], ["ESC", root.dirty ? "discard" : "close"]]
             if (root.onLoadouts) return [["←→", "browse"], ["ENTER", "fit loadout"]].concat(tail)
-            if (root.currentSlot.multi) return [["ENTER", "workbench"], ["SPACE", "toggle"], ["⇧←→", "move"]].concat(tail)
+            if (root.currentSlot.multi) return [["TAB", "category"], ["↑↓", "slot"], ["ENTER", "open workbench"]].concat(tail)
             if (root.previewing) return [["←→", "browse"], ["ENTER", "fit"]].concat(tail)
             return [["TAB", "category"], ["↑↓", "slot"], ["←→", "browse"], ["ENTER", "fit"]].concat(tail)
           }

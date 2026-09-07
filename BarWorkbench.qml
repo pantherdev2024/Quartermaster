@@ -54,9 +54,36 @@ Item {
   readonly property color line: host ? host.line : Color.muted
   readonly property string uiFont: host ? host.uiFont : Style.font.menuFamily
 
-  readonly property real tile: Style.space(54)
   readonly property real gap: Style.space(8)
   readonly property real labelWidth: Style.space(62)
+
+  // Tiles shrink until the three bins, the bench and the gaps between them
+  // fit the column, the way inventory cells shrink to fit theirs: the
+  // workbench is a whole arrangement and must never scroll. Width drives
+  // this as much as height, because a narrower column packs fewer tiles per
+  // row and every extra row costs height.
+  readonly property real tileFull: Style.space(54)
+  readonly property real tile: {
+    var h = root.height, w = root.width
+    if (h <= 0 || w <= 0) return root.tileFull
+    var counts = []
+    for (var b = 0; b < root.bins.length; b++) counts.push(root.listFor(root.bins[b].id).length)
+    counts.push(root.listFor("bench").length)
+    // What a zone's flow actually gets: the column less the zone label and
+    // the frame's own margins.
+    var inner = w - root.labelWidth - Style.space(14) - Style.space(10)
+    var pad = Style.space(20), between = Style.space(10)
+    for (var t = root.tileFull; t > Style.space(38); t -= 1) {
+      var perRow = Math.max(1, Math.floor((inner + root.gap) / (t + root.gap)))
+      var total = between * (counts.length - 1)
+      for (var i = 0; i < counts.length; i++) {
+        var rows = Math.max(1, Math.ceil(counts[i] / perRow))
+        total += Math.max(t, rows * t + (rows - 1) * root.gap) + pad
+      }
+      if (total <= h) return t
+    }
+    return Style.space(38)
+  }
 
   // ---- Cursor ----------------------------------------------------------
   property string cursorId: ""
@@ -84,14 +111,19 @@ Item {
   function ensureCursor() {
     if (!root.cursorId || !whereIs(root.cursorId)) root.cursorId = firstTile()
   }
-  onLayoutChanged: ensureCursor()
-  Component.onCompleted: ensureCursor()
-  onCursorIdChanged: {
-    // Keep the host's cursor on the same widget so item data follows.
+  // Keep the host's cursor on the same widget so item data follows.
+  function syncHostCursor() {
     if (!root.host || !root.cursorId) return
     var items = root.host.itemsFor("barMods")
-    for (var i = 0; i < items.length; i++) if (items[i].id === root.cursorId) { root.host.modsCursor = i; break }
+    for (var i = 0; i < items.length; i++) if (items[i].id === root.cursorId) { root.host.modsCursor = i; return }
   }
+  onLayoutChanged: ensureCursor()
+  Component.onCompleted: ensureCursor()
+  onCursorIdChanged: syncHostCursor()
+  // Reopening keeps the cursor where it was left, which fires no change, so
+  // the host's cursor has to be pushed again or item data opens on whatever
+  // widget it last described.
+  onVisibleChanged: if (visible) { ensureCursor(); syncHostCursor() }
 
   // Up/down step between zones, keeping the column; left/right wrap in a zone.
   function moveCursor(dx, dy) {
