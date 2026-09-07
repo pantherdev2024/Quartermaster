@@ -12,7 +12,7 @@ swap between them in one move.
 - `↑ ↓` move between slots (the saved-loadouts row across the top is always
   the last stop), `← →` browse that slot's inventory
 - BAR MODS has no inventory to browse: `← →` do nothing there and `ENTER`
-  opens its workbench
+  opens its workbench, which takes over the screen
 - `ENTER` fits the item under the cursor into its slot (or fits a whole
   saved loadout)
 - `D` deploys the fitting for real and closes the screen; clicking the pill
@@ -83,17 +83,36 @@ slot, and a saved loadout records the entire bar arrangement. On the button,
 the item data panel describes the slot rather than a widget: how the fitting
 is spread across the bar and the bench.
 
-`ENTER` on the slot, or a click on the button, opens the **workbench** in
-place of the slot list: three bins, LEFT, CENTER and RIGHT, holding the
-widgets in bar order, and a BENCH of everything that is off. Tiles shrink
-until the bins, the bench and their gaps fit the column, so the workbench
-never scrolls. Drag a tile into a bin, between two tiles, or back
-to the bench; or with the keyboard, arrows move across tiles, `1` `2` `3`
-send the tile under the cursor to a bin, `BACKSPACE` benches it, `SHIFT+← →`
-nudge it along, `SPACE` toggles. All of that edits the preview and the mini
-desktop's bar follows. `ENTER` fits the arrangement and closes the
-workbench, `ESC` drops the preview. The bins are data, so another slot could
-open a workbench of its own.
+`ENTER` on the slot, or a click on the button, opens the **workbench**, which
+takes the whole screen: bar mods edits the whole bar, so the slot column, the
+character and the saved-loadouts row stand down while it is open. It is laid
+out in the shape of the thing it edits. Across the top is the **rail** — the
+fitting drawn as a bar, in the previewed theme, tagged with the edge the bar
+is really on and whether it is solid; a clear bar lets the previewed wallpaper
+through exactly as it would on the desktop. Under it sit the three section
+bins, LEFT, CENTER and RIGHT, as equal thirds of the rail, each tethered to
+the stretch of rail it governs; under those, one **inventory** pane the rail's
+full width holding everything that is off; and at the foot, the item data
+panel for the tile under the cursor. Tiles shrink from 64px to a floor of 38
+until all of it fits the screen, so the workbench never scrolls.
+
+A vertical bar still draws as a horizontal rail. LEFT, CENTER and RIGHT are
+the bar's own section names rather than directions on the screen, so they keep
+those names whichever edge the bar is on, and the rail's tag says which edge
+that is.
+
+Drag a tile into a bin, between two tiles, or back to the inventory. With the
+keyboard, `← →` walk the whole bar — off the end of LEFT into CENTER, off the
+end of RIGHT back to the start — and walk the inventory when the cursor is
+there; `↑ ↓` cross between the bar and the inventory, landing on whatever tile
+stands nearest in the cursor's column; `1` `2` `3` send the tile under the
+cursor to a section, `BACKSPACE` benches it, `SHIFT+← →` nudge it along,
+`SPACE` toggles. All of that edits the preview, and the rail follows: the
+widget under the cursor lights on the rail as well as in its bin, so a tile
+and its real place on the bar read as the same thing. Hovering a token on the
+rail moves the cursor to it. `ENTER` fits the arrangement and closes the
+workbench, `ESC` drops the preview, `D` fits and deploys. The bins are data,
+so another slot could open a workbench of its own.
 
 Deploying diffs the live layout against the fitted one and runs, in order:
 `omarchy plugin disable` for every widget leaving, `omarchy plugin enable
@@ -191,7 +210,8 @@ manifest.json      overlay plugin declaration
 Loadout.qml        overlay entry: categories, slots, staging, loadouts, apply queue, layout
 CharacterView.qml  the character: viewport, callouts, leader lines, nameplate
 LoadoutDock.qml    the row of saved-loadout cards across the top
-BarWorkbench.qml   the workbench: tiles sorted into labelled bins and a bench
+BarWorkbench.qml   the workbench: the bar as a rail, its sections as bins, an inventory
+BarRail.qml        a bar's widget tokens, drawn for the mock desktop and the rail
 MiniDesktop.qml    the miniature mock desktop
 SlotPanel.qml      one equipment slot + its inventory row, or its workbench button
 ItemData.qml       description panel for whatever the cursor is on
