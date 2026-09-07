@@ -23,10 +23,14 @@ Item {
 
   property var host: null
   // [{ id, label }] in order; the inventory is implicit.
+  // LEFT / CENTER / RIGHT are the bar's own section names whichever edge it
+  // is on, but on a vertical bar they land top, middle and bottom of the
+  // screen, so each bin carries the name that edge would give it too. `alt`
+  // is optional: a workbench whose sections have one name only leaves it out.
   property var bins: [
-    { id: "left",   label: "LEFT" },
-    { id: "center", label: "CENTER" },
-    { id: "right",  label: "RIGHT" }
+    { id: "left",   label: "LEFT",   alt: "TOP" },
+    { id: "center", label: "CENTER", alt: "MIDDLE" },
+    { id: "right",  label: "RIGHT",  alt: "BOTTOM" }
   ]
 
   readonly property var layout: (host && host.previewBarLayout) || ({})
@@ -313,7 +317,8 @@ Item {
       // The chassis the arrangement hangs on. A vertical bar still reads as
       // a horizontal rail here — LEFT / CENTER / RIGHT are the bar's own
       // section names, not directions on the screen — so the tag says which
-      // edge it is really on.
+      // edge it is really on, and each bin names where it lands on a vertical
+      // bar as well.
       Text {
         id: railTag
         anchors { right: parent.right; top: parent.top }
@@ -425,6 +430,7 @@ Item {
           required property var modelData
           zoneId: modelData.id
           label: modelData.label
+          alt: modelData.alt || ""
           width: root.binWidth
           height: root.binsRowHeight
         }
@@ -469,6 +475,7 @@ Item {
     id: zone
     property string zoneId: ""
     property string label: ""
+    property string alt: ""
     readonly property bool isBench: zoneId === "bench"
     readonly property var ids: root.listFor(zoneId)
     readonly property bool hot: root.cursorId !== "" && ids.indexOf(root.cursorId) >= 0
@@ -481,7 +488,7 @@ Item {
       Text {
         id: zoneLabel
         anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-        text: zone.label
+        text: zone.alt === "" ? zone.label : zone.label + " / " + zone.alt
         color: zone.hot ? root.accent : root.muted
         font.family: root.uiFont
         font.pixelSize: Style.font.caption

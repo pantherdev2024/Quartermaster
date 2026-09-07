@@ -99,7 +99,10 @@ until all of it fits the screen, so the workbench never scrolls.
 A vertical bar still draws as a horizontal rail. LEFT, CENTER and RIGHT are
 the bar's own section names rather than directions on the screen, so they keep
 those names whichever edge the bar is on, and the rail's tag says which edge
-that is.
+that is. On a vertical bar those sections land at the top, the middle and the
+bottom of the screen, so each bin carries that name too — `LEFT / TOP`,
+`CENTER / MIDDLE`, `RIGHT / BOTTOM` — and you can read the bin either way
+without having to hold the mapping in your head.
 
 Drag a tile into a bin, between two tiles, or back to the inventory, or take
 it off the bar with the small cross that comes up in its corner — the same
