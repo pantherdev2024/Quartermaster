@@ -81,9 +81,9 @@ Item {
   readonly property real railHeight: Style.space(46)
   readonly property real tetherHeight: Style.space(16)
   readonly property real sectionGap: Style.space(14)
-  // What the item data band below the workbench takes, so the shrink loop
-  // sizes tiles against the room actually left over.
-  property real bottomReserve: 0
+  // What the item data band at the foot of the group takes, so the shrink
+  // loop sizes tiles against the room actually left over.
+  readonly property real bottomReserve: itemBand.height + root.sectionGap
 
   readonly property real railBlockHeight: root.headHeight + Style.space(6) + root.railHeight
 
@@ -129,6 +129,48 @@ Item {
     return root.headHeight + root.paneHeight(root.rowsFor(root.listFor("bench").length, inner, root.tile), root.tile)
   }
 
+  // Where a tile's centre falls across the workbench's width. The bins and
+  // the inventory are laid out by the same numbers the shrink loop uses, so
+  // this can be worked out from the model rather than read off the delegates
+  // — which is what lets ↑ ↓ land on whatever is actually above or below.
+  function binPerRow() {
+    return Math.max(1, Math.floor(((root.binWidth - 2 * root.framePad) + root.gap) / (root.tile + root.gap)))
+  }
+  function benchPerRow() {
+    return Math.max(1, Math.floor(((root.railWidth - 2 * root.framePad) + root.gap) / (root.tile + root.gap)))
+  }
+  function centreOf(zone, index) {
+    if (zone === "bench")
+      return root.framePad + (index % root.benchPerRow()) * (root.tile + root.gap) + root.tile / 2
+    var b = 0
+    for (var i = 0; i < root.bins.length; i++) if (root.bins[i].id === zone) b = i
+    return b * (root.binWidth + root.binGap) + root.framePad
+      + (index % root.binPerRow()) * (root.tile + root.gap) + root.tile / 2
+  }
+  function nearestIn(zone, x) {
+    var l = root.listFor(zone)
+    if (!l.length) return ""
+    var best = 0, bestD = Infinity
+    for (var i = 0; i < l.length; i++) {
+      var d = Math.abs(root.centreOf(zone, i) - x)
+      if (d < bestD) { bestD = d; best = i }
+    }
+    return l[best]
+  }
+  // The bin standing over a point, then its neighbours outwards: coming up
+  // out of the inventory under an empty bin should still land somewhere.
+  function crossToBins(x) {
+    var start = Math.max(0, Math.min(root.bins.length - 1, Math.floor(x / (root.binWidth + root.binGap))))
+    var order = []
+    for (var i = 0; i < root.bins.length; i++) order.push(i)
+    order.sort(function(a, b) { return Math.abs(a - start) - Math.abs(b - start) })
+    for (var k = 0; k < order.length; k++) {
+      var id = root.nearestIn(root.bins[order[k]].id, x)
+      if (id) return id
+    }
+    return ""
+  }
+
   // ---- Cursor ----------------------------------------------------------
   property string cursorId: ""
 
@@ -140,6 +182,16 @@ Item {
     return out
   }
   function listFor(zone) { return zone === "bench" ? root.benchIds : root.tilesIn(zone) }
+  // The bar reads left to right as one line of tiles, whatever section a
+  // tile happens to be in — which is how ← → walk it.
+  function barSequence() {
+    var out = []
+    for (var b = 0; b < root.bins.length; b++) {
+      var l = root.listFor(root.bins[b].id)
+      for (var i = 0; i < l.length; i++) out.push(l[i])
+    }
+    return out
+  }
   function whereIs(id) {
     if (!id) return null
     var zs = root.zones()
@@ -181,23 +233,26 @@ Item {
   // widget it last described.
   onVisibleChanged: if (visible) { root.ensureCursor(); root.syncHostCursor() }
 
-  // Up/down step between zones, keeping the column; left/right wrap in a zone.
+  // ← → walk the whole bar — off the end of LEFT into CENTER, off the end of
+  // RIGHT back to the start — because that is what the eye does along the
+  // rail, and what SHIFT+← → already did when nudging. In the inventory they
+  // walk the inventory. ↑ ↓ cross between the bar and the inventory, landing
+  // on whatever tile stands nearest in the column the cursor is in.
   function moveCursor(dx, dy) {
     root.ensureCursor()
     var at = root.whereIs(root.cursorId)
     if (!at) return
-    var zs = root.zones()
     if (dy !== 0) {
-      var zi = zs.indexOf(at.zone)
-      for (var step = 1; step <= zs.length; step++) {
-        var nz = zs[(zi + dy * step + zs.length * step) % zs.length]
-        var l = root.listFor(nz)
-        if (l.length) { root.cursorId = l[Math.min(at.index, l.length - 1)]; return }
-      }
+      var x = root.centreOf(at.zone, at.index)
+      var to = at.zone === "bench" ? root.crossToBins(x) : root.nearestIn("bench", x)
+      if (to) root.cursorId = to
       return
     }
-    var list = root.listFor(at.zone)
-    root.cursorId = list[(at.index + dx + list.length) % list.length]
+    var list = at.zone === "bench" ? root.benchIds : root.barSequence()
+    if (!list.length) return
+    var i = list.indexOf(root.cursorId)
+    if (i < 0) return
+    root.cursorId = list[(i + dx + list.length) % list.length]
   }
 
   function handleKey(key, modifiers) {
@@ -386,6 +441,15 @@ Item {
         topMargin: root.railBlockHeight + root.tetherHeight + root.binsRowHeight + root.sectionGap
       }
       height: root.benchHeight
+    }
+
+    // Whatever the cursor is on, spelled out — the same panel the slot column
+    // carries, run the rail's full width at the foot of the group.
+    ItemData {
+      id: itemBand
+      anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+      height: implicitHeight
+      host: root.host
     }
   }
 

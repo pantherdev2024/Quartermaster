@@ -1543,10 +1543,12 @@ Item {
             var tail = root.dirty
               ? [["D", "deploy"], ["S", "save loadout"], ["ESC", "discard"]]
               : [["S", "save"], ["ESC", "close"]]
-            if (root.workbenchOpen)
-              return root.compact
-                ? [["↑↓←→", "tile"], ["1 2 3", "to bin"], ["⌫", "bench"], ["⇧←→", "nudge"], ["ENTER", "fit"], ["ESC", "cancel"]]
-                : [["↑↓←→", "tile"], ["1 2 3", "to bin"], ["⌫", "bench"], ["⇧←→", "nudge"], ["ENTER", "fit"], ["D", "fit + deploy"], ["ESC", "cancel"]]
+            if (root.workbenchOpen) {
+              var wb = [["←→", "along the bar"], ["↑↓", "inventory"], ["1 2 3", "to section"],
+                        ["⌫", "bench"], ["⇧←→", "nudge"], ["ENTER", "fit"]]
+              if (!root.compact) wb.push(["D", "fit + deploy"])
+              return wb.concat([["ESC", "cancel"]])
+            }
             if (sel && sel.isNew) return [["ENTER", "save fitting"], ["ESC", root.dirty ? "discard" : "close"]]
             if (root.onLoadouts) return [["←→", "browse"], ["ENTER", "fit loadout"]].concat(tail)
             if (root.currentSlot.multi) return [["TAB", "category"], ["↑↓", "slot"], ["ENTER", "open workbench"]].concat(tail)
