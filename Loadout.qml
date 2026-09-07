@@ -95,7 +95,7 @@ Item {
   // font last because it restarts the shell. Adding a slot means one entry
   // here and a matching branch in itemsFor().
   readonly property var categories: [
-    { id: "outfit",    label: "STYLE",     icon: "󰩻" },
+    { id: "outfit",    label: "STYLE",     icon: "󰃣" },
     { id: "chassis",   label: "SHELL",     icon: "󰕮" },
     { id: "cyberware", label: "CYBERWARE", icon: "󰘚" }
   ]
