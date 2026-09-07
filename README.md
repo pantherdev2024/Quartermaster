@@ -35,6 +35,44 @@ A row under **Style** in the Omarchy menu, in
 "style.loadout": {"icon":"󰆓","label":"Loadout","aliases":["loadout","equip"],"description":"Equip themes, backgrounds and fonts with a live preview","action":"omarchy-shell shell toggle io.github.pantherdev2024.loadout"},
 ```
 
+## What it needs and what it touches
+
+Nothing beyond Omarchy itself. `jq`, Hyprland, Quickshell and the JetBrains
+Mono Nerd Font the glyphs are drawn from are already hard dependencies of the
+`omarchy` package; everything else the scripts reach for is coreutils. There is
+no service to start, no installer, no remote build, and no network access at
+any point.
+
+What it does have is your desktop, so it is worth being plain about which half
+of the screen does what. Browsing and fitting are inert — they repaint the mock
+desktop and touch nothing else. Only `D` runs anything, and what it runs are
+the ordinary Omarchy commands, the same ones the Omarchy menu runs:
+`omarchy-theme-set`, `omarchy-theme-bg-set`, `omarchy-font-set`,
+`omarchy-display-text-size`, `omarchy-bar position` and `transparent`,
+`omarchy plugin enable` / `disable`, `omarchy bar move`, and
+`omarchy-default-terminal` / `-editor` / `-browser`. Each is handed its
+arguments as a list rather than a shell string, and every value in that list is
+an id the inventory itself produced.
+
+Opening the screen only reads: those same commands with no argument, plus
+`omarchy-plugin-catalog`, `~/.config/omarchy/shell.json`, the two theme
+directories, and the current-theme and current-background links. Where Omarchy
+ships an `omarchy-installed-service-*` check, that runs too, under a two second
+timeout — which is what keeps a widget with nothing behind it out of the
+catalogue.
+
+Loadout writes in three places of its own: saved loadouts under
+`~/.local/share/omarchy/loadouts/`, a log and the last deploy's result under
+`~/.local/state/omarchy/loadout/`, and the default agent in
+`~/.config/omarchy/defaults/agent`, written directly for the reason given
+under Categories and slots.
+
+None of this asks for root: there is no `sudo` or `pkexec` anywhere in the
+plugin, and Omarchy's installer never runs plugin code. What is true of every
+Omarchy plugin is true of this one, though — it shares the long-running
+`omarchy-shell` process and runs unsandboxed with your user's permissions, so
+read the code before you enable it.
+
 ## Remove
 
 ```sh
