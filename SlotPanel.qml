@@ -123,8 +123,17 @@ Item {
         model: root.items
         currentIndex: root.selected
         highlightMoveDuration: 180
-        // Keep the equipped/staged cell in view as the cursor moves.
-        onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+
+        // Keep the equipped/staged cell in view. Now that a row shows six
+        // cells at most, a slot the cursor has never visited can still open
+        // scrolled away from its equipped cell, so re-reveal whenever the
+        // row's geometry or its stock changes and not only as the cursor
+        // moves. callLater so the view has laid the cells out first.
+        function reveal() { positionViewAtIndex(currentIndex, ListView.Contain) }
+        onCurrentIndexChanged: Qt.callLater(reveal)
+        onWidthChanged: Qt.callLater(reveal)
+        onCountChanged: Qt.callLater(reveal)
+        Component.onCompleted: Qt.callLater(reveal)
 
         delegate: Item {
           id: cell

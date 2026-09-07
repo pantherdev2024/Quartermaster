@@ -94,9 +94,9 @@ Item {
     { id: "theme",          cat: "outfit",    label: "THEME",        icon: "󰏘", order: 10, apply: ["omarchy-theme-set"] },
     { id: "background",     cat: "outfit",    label: "BACKGROUND",   icon: "󰸉", order: 20, apply: ["omarchy-theme-bg-set"] },
     { id: "font",           cat: "outfit",    label: "FONT",         icon: "󰛖", order: 90, apply: ["omarchy-font-set"] },
+    { id: "textSize",       cat: "outfit",    label: "TEXT SIZE",    icon: "󰉡", order: 40, apply: ["omarchy-display-text-size"] },
     { id: "barPosition",    cat: "chassis",   label: "BAR POSITION", icon: "󰍹", order: 30, apply: ["omarchy-bar", "position"] },
     { id: "barTransparent", cat: "chassis",   label: "BAR SURFACE",  icon: "󰗌", order: 31, apply: ["omarchy-bar", "transparent"] },
-    { id: "textSize",       cat: "chassis",   label: "TEXT SIZE",    icon: "󰉡", order: 40, apply: ["omarchy-display-text-size"] },
     // The bar's widget layout: a multi-select slot. `apply` is only a marker;
     // deployCommands() asks barModsCommands() for the real command list.
     { id: "barMods",        cat: "chassis",   label: "BAR MODS",     icon: "󰐱", order: 32, apply: ["omarchy-bar"], multi: true },

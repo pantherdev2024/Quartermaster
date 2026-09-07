@@ -44,19 +44,20 @@ the top of the left column. The active pill spells out its name.
 | **Style** | Theme | `~/.config/omarchy/themes` + `/usr/share/omarchy/themes` | `omarchy-theme-set` |
 | | Background | the fitted theme's `backgrounds/` | `omarchy-theme-bg-set` |
 | | Font | `omarchy font list` | `omarchy-font-set` |
+| | Text size | 9–20 px | `omarchy-display-text-size` |
 | **Shell** | Bar position | top / bottom / left / right | `omarchy-bar position` |
 | | Bar surface | solid / transparent | `omarchy-bar transparent` |
-| | Text size | 9–20 px | `omarchy-display-text-size` |
 | | Bar mods | every `bar-widget` plugin in the catalogue | `omarchy plugin enable` / `disable`, `omarchy bar move` |
 | **Cyberware** | Terminal | installed alacritty / foot / ghostty / kitty | `omarchy-default-terminal` |
 | | Editor | installed editors `omarchy default editor` knows | `omarchy-default-editor` |
 | | Browser | installed browsers `omarchy default browser` knows | `omarchy-default-browser` |
 | | Agent | coding agents on `PATH` | `agent-set.sh` |
 
-Style is what the desktop wears, Shell is the frame it hangs on, and
-Cyberware is the tooling wired into it. Shell choices preview live: the
-mini desktop moves its bar, drops the bar fill, scales its type, and mirrors
-the bar's widget layout.
+Style is what the desktop wears — its palette, its wallpaper and its type,
+face and size together — Shell is the frame it hangs on, and Cyberware is the
+tooling wired into it. Style and Shell both preview live: the mini desktop
+repaints, scales its type, moves its bar, drops the bar fill, and mirrors the
+bar's widget layout.
 
 ### Deploying
 
