@@ -10,7 +10,7 @@ swap between them in one move.
 ## Install
 
 ```sh
-omarchy plugin add https://github.com/pantherdev2024/loadout.git --enable
+omarchy plugin add https://github.com/pantherdev2024/OmaKit.git --enable
 ```
 
 Adding shows you the code before anything runs, and a plugin lands disabled
