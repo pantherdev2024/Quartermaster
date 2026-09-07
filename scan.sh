@@ -1,5 +1,5 @@
 #!/bin/bash
-# Emits the full Loadout inventory as a single JSON document on stdout.
+# Emits the full OmaKit inventory as a single JSON document on stdout.
 # Kept out of QML on purpose: the same pattern the built-in clipboard plugin
 # uses, so parsing stays in bash where the omarchy commands already live.
 #

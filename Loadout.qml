@@ -8,7 +8,7 @@ import QtQuick
 import qs.Commons
 import qs.Ui
 
-// Loadout — an RPG equip screen for Omarchy.
+// OmaKit — an RPG equip screen for Omarchy.
 //
 // Equipment is grouped into categories, picked from a row of glyph pills
 // across the top of the left column. Below the pills, the active category's
@@ -1242,7 +1242,9 @@ Item {
             spacing: Style.space(14)
 
             Text {
-              text: "LOADOUT"
+              // The wordmark. Every other LOADOUT in the chrome is the common
+              // noun -- a saved fitting is a loadout -- and stays as it is.
+              text: "OMAKIT"
               color: root.accent
               font.family: root.uiFont
               font.pixelSize: Style.font.display
