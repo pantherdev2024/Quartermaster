@@ -8,6 +8,11 @@ import qs.Commons
 // the right, shell along the foot — each tethered to the viewport by a
 // leader line. Callouts read from the same preview/fitted/live state as the slot
 // list, so browsing on the left re-labels the character on the right at once.
+//
+// The arrangement is sized to take more slots than it has: a side column holds
+// what fits beside the viewport and the rest spills to the foot, which wraps
+// and may use the pane's full width. A pane too narrow to flank at all stacks
+// the callouts into a grid underneath instead.
 Item {
   id: root
 
@@ -25,20 +30,87 @@ Item {
   function slotsIn(cat) {
     return root.defs.filter(function(d) { return d.cat === cat })
   }
-  readonly property var leftSlots: slotsIn("outfit")
-  readonly property var rightSlots: slotsIn("cyberware")
-  readonly property var bottomSlots: slotsIn("chassis")
-  // Compact order is category order, so the grid reads top to bottom the
+  readonly property var styleSlots: slotsIn("outfit")
+  readonly property var shellSlots: slotsIn("chassis")
+  readonly property var cyberSlots: slotsIn("cyberware")
+  // Stacked order is category order, so the grid reads top to bottom the
   // way the tabs read left to right.
-  readonly property var gridSlots: leftSlots.concat(bottomSlots).concat(rightSlots)
+  readonly property var gridSlots: styleSlots.concat(shellSlots).concat(cyberSlots)
 
-  // Compact: no room to flank the viewport, so the callouts form a grid
-  // under it, each tethered to the card above (or the nameplate).
-  readonly property bool compact: host ? host.compact : width < Style.space(900)
-
-  readonly property real gutter: Style.space(30)
+  // ---- Geometry ---------------------------------------------------------
+  readonly property real gutter: Style.space(22)
   readonly property real calloutHeight: Style.space(58)
-  readonly property real sideWidth: Math.max(Style.space(140), (width - viewport.width) / 2 - gutter)
+  readonly property real cardGap: Style.space(16)
+  // The narrowest a callout may be drawn. Below this it stops being worth
+  // the width it takes, and the layout should give up flanking instead.
+  readonly property real minCardWidth: Style.space(132)
+  readonly property real viewportShare: 0.58
+
+  // Flanking costs the viewport's share of the width plus, on each side, a
+  // gutter and a card at its floor. Deciding from that rather than from a
+  // screen width means a roomier spacing scale, or a left column that grows,
+  // falls back to the stack on its own instead of overlapping.
+  readonly property bool flanked: width * (1 - root.viewportShare) >= 2 * (root.gutter + root.minCardWidth)
+    && height >= Style.space(268)
+  // No room to flank: the callouts form a grid under the viewport, each
+  // tethered to the card above it (or to the nameplate).
+  readonly property bool stacked: !root.flanked
+
+  readonly property real sideWidth: Math.max(root.minCardWidth, (width - viewport.width) / 2 - root.gutter)
+
+  // ---- Buckets ----------------------------------------------------------
+  // How many callouts a side column holds for free: a column is centred on
+  // the viewport and may reach a little past it, but no further, because
+  // past that it starts pushing the foot row down. Beyond this a slot is
+  // cheaper at the foot, where one row holds several.
+  readonly property int sideCapacity: {
+    var room = viewport.height + 2 * Style.space(56)
+    return Math.max(1, Math.floor((room + root.cardGap) / (root.calloutHeight + root.cardGap)))
+  }
+
+  // Style keeps the left, Cyberware the right and Shell the foot, because
+  // that grouping is the point. What a side column cannot hold spills into
+  // the foot rather than pushing the column off the pane, so a category can
+  // grow past the height without breaking the layout.
+  readonly property var leftSlots: root.styleSlots.slice(0, root.sideCapacity)
+  readonly property var rightSlots: root.cyberSlots.slice(0, root.sideCapacity)
+  readonly property var bottomSlots: root.shellSlots
+    .concat(root.styleSlots.slice(root.sideCapacity))
+    .concat(root.cyberSlots.slice(root.sideCapacity))
+
+  // The foot sits under the viewport by default, but it may run out to the
+  // pane's full width and wrap rather than squeeze its cards below the
+  // floor: it is the bucket that takes every spill.
+  readonly property int bottomColumns: {
+    var n = root.bottomSlots.length
+    if (n <= 0) return 1
+    var fit = Math.floor((root.width + root.cardGap) / (root.minCardWidth + root.cardGap))
+    return Math.max(1, Math.min(n, fit))
+  }
+  readonly property real bottomRowWidth: {
+    var cols = root.bottomColumns
+    var floorWidth = cols * root.minCardWidth + (cols - 1) * root.cardGap
+    return Math.min(root.width, Math.max(viewport.width, floorWidth))
+  }
+  readonly property real bottomCardWidth:
+    (root.bottomRowWidth - root.cardGap * (root.bottomColumns - 1)) / root.bottomColumns
+
+  // How far the taller side column reaches past the viewport, top and foot.
+  // The group is centred on the union of the two, so a tall column pushes
+  // the whole arrangement down instead of off the top of the pane.
+  readonly property real sideOverhang: root.stacked ? 0
+    : Math.max(0, (Math.max(leftColumn.height, rightColumn.height) - viewport.height) / 2)
+
+  // Where the foot row sits, measured from the viewport's own top. It
+  // normally sits under the nameplate in the viewport's channel, clear of
+  // the side columns. Once it runs wider than that channel it has to start
+  // below the taller column instead of beside it.
+  readonly property real footOffset: {
+    var underNameplate = viewport.height + Style.space(12 + 30 + 34)
+    var channel = root.width - 2 * (root.sideWidth + root.gutter)
+    if (root.bottomRowWidth <= channel) return underNameplate
+    return Math.max(underNameplate, viewport.height + root.sideOverhang + root.cardGap)
+  }
 
   function repaintLeaders() { leaders.requestPaint() }
   onWidthChanged: repaintLeaders()
@@ -55,14 +127,18 @@ Item {
   TechFrame {
     id: viewport
     anchors.horizontalCenter: parent.horizontalCenter
-    // The group (viewport, nameplate, shell row) sits centred in the pane.
-    readonly property real groupHeight: height + Style.space(12 + 30)
-      + (root.compact ? Style.space(24) + grid.height : Style.space(34) + root.calloutHeight)
-    y: Math.max(Style.space(16), (parent.height - groupHeight) / 2)
-    width: root.compact
+    // Everything the arrangement occupies, measured from the viewport's top.
+    readonly property real groupHeight: root.stacked
+      ? height + Style.space(12 + 30 + 24) + grid.height
+      : root.footOffset + bottomRow.height
+    // Centre the union of that and the side columns, not the stack alone:
+    // the columns are centred on the viewport and reach above it.
+    y: root.sideOverhang
+      + Math.max(Style.space(16), (parent.height - root.sideOverhang - groupHeight) / 2)
+    width: root.stacked
       ? Math.min(parent.width * 0.86,
                  Math.max(Style.space(180), parent.height - Style.space(16 + 12 + 30 + 24) - grid.height) * (16 / 9))
-      : Math.min(parent.width * 0.58, (parent.height * 0.50) * (16 / 9))
+      : Math.min(parent.width * root.viewportShare, (parent.height * 0.50) * (16 / 9))
     height: width * (9 / 16)
     chamfer: Style.space(14)
     cuts: ["tl", "tr", "bl", "br"]
@@ -207,31 +283,35 @@ Item {
           }
         }
       }
-      if (root.compact) {
-        // Grid cards chain upward: each tethers to the card above it in the
-        // same column, and the top row to the nameplate.
+      // Cards under the viewport chain upward: each tethers to the card
+      // above it in the same column, and the top row to the nameplate. A
+      // single row has nothing above it, so every card tethers straight up,
+      // which is what the foot row does until it has to wrap.
+      function chainUp(container, columns) {
         var cards = []
-        for (var i = 0; i < grid.children.length; i++) if (grid.children[i].def) cards.push(grid.children[i])
+        for (var i = 0; i < container.children.length; i++)
+          if (container.children[i].def) cards.push(container.children[i])
         for (var j = 0; j < cards.length; j++) {
           var c = cards[j]
           var cp = c.mapToItem(root, 0, 0)
           var cx = cp.x + c.width / 2
-          var above = j >= grid.columns ? cards[j - grid.columns] : null
+          var above = j >= columns ? cards[j - columns] : null
           var toY = above ? above.mapToItem(root, 0, 0).y + above.height : nameplate.y + nameplate.height
           drawLeader(ctx, { x: cx, y: cp.y }, { x: cx, y: toY }, lineColorFor(c.def))
         }
-        return
       }
+
+      if (root.stacked) { chainUp(grid, grid.columns); return }
       each(leftColumn, "left")
       each(rightColumn, "right")
-      each(bottomRow, "bottom")
+      chainUp(bottomRow, bottomRow.columns)
     }
   }
 
   // ---- Compact grid ----------------------------------------------------
   Grid {
     id: grid
-    visible: root.compact
+    visible: root.stacked
     anchors { top: nameplate.bottom; topMargin: Style.space(24); left: parent.left; right: parent.right }
     columns: 3
     columnSpacing: Style.space(12)
@@ -239,7 +319,7 @@ Item {
     onHeightChanged: root.repaintLeaders()
 
     Repeater {
-      model: root.compact ? root.gridSlots : []
+      model: root.stacked ? root.gridSlots : []
       delegate: Callout {
         required property var modelData
         def: modelData
@@ -252,14 +332,14 @@ Item {
   // ---- Callout columns -------------------------------------------------
   Column {
     id: leftColumn
-    visible: !root.compact
+    visible: root.flanked
     anchors { left: parent.left; verticalCenter: viewport.verticalCenter }
     width: root.sideWidth
-    spacing: Style.space(16)
+    spacing: root.cardGap
     onHeightChanged: root.repaintLeaders()
 
     Repeater {
-      model: root.compact ? [] : root.leftSlots
+      model: root.flanked ? root.leftSlots : []
       delegate: Callout {
         required property var modelData
         def: modelData
@@ -271,14 +351,14 @@ Item {
 
   Column {
     id: rightColumn
-    visible: !root.compact
+    visible: root.flanked
     anchors { right: parent.right; verticalCenter: viewport.verticalCenter }
     width: root.sideWidth
-    spacing: Style.space(16)
+    spacing: root.cardGap
     onHeightChanged: root.repaintLeaders()
 
     Repeater {
-      model: root.compact ? [] : root.rightSlots
+      model: root.flanked ? root.rightSlots : []
       delegate: Callout {
         required property var modelData
         def: modelData
@@ -288,20 +368,23 @@ Item {
     }
   }
 
-  Row {
+  Grid {
     id: bottomRow
-    visible: !root.compact
-    anchors { top: nameplate.bottom; topMargin: Style.space(34); horizontalCenter: viewport.horizontalCenter }
-    spacing: Style.space(16)
+    visible: root.flanked
+    anchors.horizontalCenter: parent.horizontalCenter
+    y: viewport.y + root.footOffset
+    columns: root.bottomColumns
+    spacing: root.cardGap
     onWidthChanged: root.repaintLeaders()
+    onHeightChanged: root.repaintLeaders()
 
     Repeater {
-      model: root.compact ? [] : root.bottomSlots
+      model: root.flanked ? root.bottomSlots : []
       delegate: Callout {
         required property var modelData
         def: modelData
         side: "bottom"
-        width: (viewport.width - bottomRow.spacing * (root.bottomSlots.length - 1)) / Math.max(1, root.bottomSlots.length)
+        width: root.bottomCardWidth
       }
     }
   }
@@ -324,7 +407,7 @@ Item {
     readonly property string tag: previewed ? "PREVIEW" : staged ? "FITTED" : (multi || (item && item.equipped) ? "EQUIPPED" : (item ? "" : "EMPTY"))
     readonly property color tagColor: previewed ? root.accent : staged ? root.warn : (multi || (item && item.equipped) ? root.good : root.muted)
     // No room for the tag word: compact, or a narrow card in the wide layout.
-    readonly property bool tight: root.compact || width < Style.space(170)
+    readonly property bool tight: width < Style.space(170)
 
     height: root.calloutHeight
 

@@ -147,14 +147,27 @@ warning colour when fitted.
 Every frame is a `TechFrame`: a chamfered outline with an optional heavy edge
 and corner brackets, drawn on a Canvas so it recolours with the theme.
 
-On a narrow output (under about 1500 px at the theme's spacing scale, so a
-1280-wide laptop panel) the screen drops to a compact tier: the callouts form
-a three-column grid under the viewport, one category per row, each tethered to
-the card above it, and the tag word becomes a small state square. On the left,
-the item data panel is the first thing to go when the column is short: every
-slot shows before any description does. The inventory cells then shrink until
-the tallest category fits its column together with the dock, so no screen has
-to scroll a slot list; scrolling remains only as a last resort.
+The callouts flank the viewport on every screen that can hold them. Whether a
+screen can is worked out rather than assumed: flanking costs the viewport's
+share of the width plus, on each side, a gutter and a card at its floor, so a
+1280-wide laptop panel flanks and a roomier spacing scale falls back on its own
+to a stack, a three-column grid under the viewport with each card tethered to
+the one above it. A card narrower than about 170 px drops the tag word for a
+small state square.
+
+The layout is built to take more slots than it has. Style keeps the left,
+Cyberware the right and Shell the foot, because that grouping is the point, but
+a side column only holds what fits beside the viewport; past that a slot is
+cheaper at the foot, where one row holds several, so the excess spills there.
+The foot row may run out to the pane's full width and wrap, and when it runs
+wider than the viewport's channel it starts below the side columns rather than
+beside them. The whole arrangement is centred on the union of the stack and the
+columns, so a tall column pushes it down instead of off the top.
+
+On the left, the item data panel is the first thing to go when the column is
+short: every slot shows before any description does. The inventory cells then
+shrink until the tallest category fits its column together with the dock, so no
+screen has to scroll a slot list; scrolling remains only as a last resort.
 
 ## Notes
 
