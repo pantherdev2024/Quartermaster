@@ -33,10 +33,6 @@ Item {
 
   // Glyph per widget id, handed in by the host so tiles and bar agree.
   property var glyphs: ({})
-  function glyphFor(id) {
-    var g = root.glyphs ? root.glyphs[id] : ""
-    return g || "▪"
-  }
 
   // Palette accessor with fallback — user themes don't all define every key.
   function c(key, fallback) {
@@ -112,123 +108,22 @@ Item {
       ? "transparent"
       : Qt.rgba(root.darkBg.r, root.darkBg.g, root.darkBg.b, 0.92)
 
-    // The widgets, mirrored from the fitting's bar layout: three groups at
-    // the start, middle and end of the bar, each a run of tokens. Workspaces
-    // draw as the pip row, the clock as the time, the tray as a dot cluster,
-    // and everything else as a glyph, so toggling a widget in BAR MODS shows
-    // up here at once.
-    BarGroup {
-      ids: root.layoutOrDefault.left || []
-      anchors {
-        left: root.barHorizontal ? parent.left : undefined
-        leftMargin: root.u * 2.5
-        top: root.barHorizontal ? undefined : parent.top
-        topMargin: root.u * 2.5
-        verticalCenter: root.barHorizontal ? parent.verticalCenter : undefined
-        horizontalCenter: root.barHorizontal ? undefined : parent.horizontalCenter
-      }
-    }
-    BarGroup {
-      ids: root.layoutOrDefault.center || []
-      anchors.centerIn: parent
-    }
-    BarGroup {
-      ids: root.layoutOrDefault.right || []
-      anchors {
-        right: root.barHorizontal ? parent.right : undefined
-        rightMargin: root.u * 2.5
-        bottom: root.barHorizontal ? undefined : parent.bottom
-        bottomMargin: root.u * 2.5
-        verticalCenter: root.barHorizontal ? parent.verticalCenter : undefined
-        horizontalCenter: root.barHorizontal ? undefined : parent.horizontalCenter
-      }
-    }
-  }
-
-  component BarGroup: Grid {
-    id: group
-    property var ids: []
-    columns: root.barHorizontal ? Math.max(1, ids.length) : 1
-    spacing: root.u * 2
-    verticalItemAlignment: Grid.AlignVCenter
-    horizontalItemAlignment: Grid.AlignHCenter
-
-    Repeater {
-      model: group.ids
-      delegate: BarToken {}
-    }
-  }
-
-  component BarToken: Item {
-    id: tok
-    required property string modelData
-    readonly property string kind: modelData === "omarchy.workspaces" ? "pips"
-      : modelData === "omarchy.clock" ? "clock"
-      : modelData === "omarchy.tray" ? "tray"
-      : modelData === "omarchy.spacer" ? "gap"
-      : "glyph"
-
-    width: kind === "pips" ? pips.width : kind === "clock" ? clock.width
-      : kind === "tray" ? tray.width : kind === "gap" ? root.u * 4 : glyph.width
-    height: kind === "pips" ? pips.height : kind === "clock" ? clock.height
-      : kind === "tray" ? tray.height : kind === "gap" ? root.u * 2 : glyph.height
-
-    // Workspace pips — first one active in the accent color.
-    Grid {
-      id: pips
-      visible: tok.kind === "pips"
-      columns: root.barHorizontal ? 5 : 1
-      spacing: root.u * 1.6
-      Repeater {
-        model: 5
-        Rectangle {
-          required property int index
-          width: root.barHorizontal ? (index === 0 ? root.u * 4 : root.u * 2) : root.u * 2
-          height: root.barHorizontal ? root.u * 2 : (index === 0 ? root.u * 4 : root.u * 2)
-          radius: Math.min(width, height) / 2
-          color: index === 0 ? root.accent : root.dimFg
-          opacity: index === 0 ? 1 : 0.45
-        }
-      }
-    }
-
-    Text {
-      id: clock
-      visible: tok.kind === "clock"
-      text: root.barHorizontal
-        ? Qt.formatDateTime(new Date(), "ddd d MMM  hh:mm")
-        : Qt.formatDateTime(new Date(), "hh\n—\nmm")
-      horizontalAlignment: Text.AlignHCenter
-      color: root.fg
-      font.family: root.fontFamily
-      font.pixelSize: root.t * 3.4
-    }
-
-    Grid {
-      id: tray
-      visible: tok.kind === "tray"
-      columns: root.barHorizontal ? 3 : 1
-      spacing: root.u * 1.8
-      Repeater {
-        model: [root.green, root.yellow, root.blue]
-        Rectangle {
-          required property color modelData
-          width: root.u * 2.2
-          height: root.u * 2.2
-          radius: width / 2
-          color: modelData
-        }
-      }
-    }
-
-    Text {
-      id: glyph
-      visible: tok.kind === "glyph"
-      text: root.glyphFor(tok.modelData)
-      color: root.fg
-      opacity: 0.85
-      font.family: root.fontFamily
-      font.pixelSize: root.t * 3.2
+    // The widgets, mirrored from the fitting's bar layout, drawn by the
+    // shared BarRail so the mock bar and the workbench's rail agree.
+    BarRail {
+      anchors.fill: parent
+      layout: root.layoutOrDefault
+      glyphs: root.glyphs
+      horizontal: root.barHorizontal
+      u: root.u
+      t: root.t
+      fontFamily: root.fontFamily
+      fg: root.fg
+      dimFg: root.dimFg
+      accent: root.accent
+      green: root.green
+      yellow: root.yellow
+      blue: root.blue
     }
   }
 
