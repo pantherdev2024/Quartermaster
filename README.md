@@ -101,8 +101,11 @@ the bar's own section names rather than directions on the screen, so they keep
 those names whichever edge the bar is on, and the rail's tag says which edge
 that is.
 
-Drag a tile into a bin, between two tiles, or back to the inventory. With the
-keyboard, `← →` walk the whole bar — off the end of LEFT into CENTER, off the
+Drag a tile into a bin, between two tiles, or back to the inventory, or take
+it off the bar with the small cross that comes up in its corner — the same
+cross a saved-loadout card carries, shown while the pointer or the keyboard
+cursor is on the tile. A tile in the inventory is already off, so it gets
+none. With the keyboard, `← →` walk the whole bar — off the end of LEFT into CENTER, off the
 end of RIGHT back to the start — and walk the inventory when the cursor is
 there; `↑ ↓` cross between the bar and the inventory, landing on whatever tile
 stands nearest in the cursor's column; `1` `2` `3` send the tile under the

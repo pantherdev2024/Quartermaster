@@ -12,8 +12,9 @@ import qs.Commons
 // Bar mods uses three bins (LEFT, CENTER, RIGHT), but the bins are data, so
 // another slot could open a workbench of its own with as many columns.
 //
-// Mouse: drag a tile into a bin, between two tiles, or back to the inventory.
-// Hovering the rail moves the cursor. Keyboard: ← → walk the whole bar and
+// Mouse: drag a tile into a bin, between two tiles, or back to the inventory,
+// or take it off the bar with the cross in its corner. Hovering the rail moves
+// the cursor. Keyboard: ← → walk the whole bar and
 // wrap at its ends, ↑ ↓ cross between the bins and the inventory, 1 2 3 send
 // the tile to a bin, BACKSPACE benches it, SHIFT+← → nudge it along, SPACE
 // toggles. The host handles ENTER (fit), ESC (cancel) and D around it.
@@ -573,9 +574,10 @@ Item {
     }
   }
 
-  // A tile: glyph over short name, cursor brackets, a settings marker. The
-  // visual sits in a wrapper the Flow positions; only the visual drags, and
-  // snaps back when dropped because the model, not the drag, moves it.
+  // A tile: glyph over short name, cursor brackets, a settings marker, and —
+  // on a tile that is on the bar — a cross that takes it off. The visual sits
+  // in a wrapper the Flow positions; only the visual drags, and snaps back
+  // when dropped because the model, not the drag, moves it.
   component Tile: Item {
     id: wrap
     property string widgetId: ""
@@ -640,10 +642,11 @@ Item {
           }
         }
 
-        // Carries settings: benching it discards them.
+        // Carries settings: benching it discards them. On the left, because
+        // the top-right corner is where the remove cross comes up.
         Rectangle {
           visible: wrap.w.settings === true
-          anchors { right: parent.right; top: parent.top; rightMargin: Style.space(5); topMargin: Style.space(5) }
+          anchors { left: parent.left; top: parent.top; leftMargin: Style.space(5); topMargin: Style.space(5) }
           width: Style.space(5); height: Style.space(5)
           color: root.warn
         }
@@ -673,6 +676,35 @@ Item {
           visual.y = 0
         }
         onDoubleClicked: if (root.host) root.host.toggleModId(wrap.widgetId)
+      }
+
+      // Take it off the bar: the same small corner cross the loadout cards
+      // carry, shown while the pointer or the keyboard cursor is on the tile.
+      // Declared after the tile's own MouseArea so the press lands here and
+      // no drag starts under it. A tile in the inventory is already off, so
+      // it gets none.
+      Text {
+        id: removeCross
+        visible: wrap.zoneId !== "bench" && !tileMouse.drag.active
+          && (tileMouse.containsMouse || wrap.isCursor || removeMouse.containsMouse)
+        anchors { right: parent.right; top: parent.top; rightMargin: Style.space(4); topMargin: Style.space(1) }
+        text: "󰅖"
+        color: removeMouse.containsMouse ? root.warn : root.muted
+        font.family: root.uiFont
+        font.pixelSize: Style.font.caption + 2
+
+        MouseArea {
+          id: removeMouse
+          anchors.fill: parent
+          anchors.margins: -Style.space(4)
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: {
+            if (!root.host) return
+            root.host.benchMod(wrap.widgetId)
+            root.cursorId = wrap.widgetId
+          }
+        }
       }
     }
   }
