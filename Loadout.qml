@@ -30,6 +30,11 @@ Item {
   property bool applying: false
   property string statusText: ""
 
+  // Compact tier (laptop panels): the character's callouts drop into a grid
+  // under the viewport instead of flanking it. Measured against the spacing
+  // scale so a roomier theme falls back to it sooner.
+  readonly property bool compact: panel.width < Style.space(1500)
+
   // Resolved from the QML file's own location so a rename or clone still works.
   readonly property string pluginDir: {
     var u = Qt.resolvedUrl(".").toString()
@@ -898,18 +903,42 @@ Item {
               id: itemData
               anchors { left: parent.left; right: parent.right; bottom: dock.top; bottomMargin: Style.space(44) }
               host: root
+              // The description is the first thing to go when the column is
+              // short: every slot shows before any item data does.
+              readonly property real roomForSlots: leftColumn.height - tabs.height - Style.space(22) - Style.space(44) - dock.height
+              readonly property real slotsNeed: slotList.slotHeights + slotList.minSpacing * Math.max(0, slotList.count - 1)
+              visible: roomForSlots - implicitHeight - Style.space(24) >= slotsNeed
             }
 
             // Slots scroll if a small screen can't fit the whole category.
             Flickable {
               id: slotScroll
-              anchors { left: parent.left; right: parent.right; top: tabs.bottom; bottom: itemData.top }
+              anchors { left: parent.left; right: parent.right; top: tabs.bottom; bottom: itemData.visible ? itemData.top : dock.top }
               anchors.topMargin: Style.space(22)
-              anchors.bottomMargin: Style.space(24)
+              anchors.bottomMargin: itemData.visible ? Style.space(24) : Style.space(44)
               contentWidth: width
               contentHeight: slotList.implicitHeight
               clip: true
               boundsBehavior: Flickable.StopAtBounds
+
+              // Keep the focused slot in view when the category is taller
+              // than the column; when everything fits, sit at the top.
+              function revealCurrent() {
+                if (contentHeight <= height) { contentY = 0; return }
+                for (var i = 0; i < slotList.children.length; i++) {
+                  var c = slotList.children[i]
+                  if (!c.slotDef || c.slotDef.id !== root.currentSlot.id) continue
+                  if (c.y < contentY) contentY = c.y
+                  else if (c.y + c.height > contentY + height) contentY = Math.min(c.y + c.height - height, contentHeight - height)
+                  return
+                }
+              }
+              onContentHeightChanged: Qt.callLater(revealCurrent)
+              onHeightChanged: Qt.callLater(revealCurrent)
+              Connections {
+                target: root
+                function onSlotIndexChanged() { Qt.callLater(slotScroll.revealCurrent) }
+              }
 
               Column {
                 id: slotList
@@ -918,13 +947,14 @@ Item {
                 // room, the way the reference spaces slots around the body,
                 // but never so far that they stop reading as one list.
                 readonly property int count: root.visibleSlots.length
+                readonly property real minSpacing: Style.space(root.compact ? 16 : 24)
                 readonly property real slotHeights: {
                   var h = 0
                   for (var i = 0; i < children.length; i++) if (children[i].slotDef) h += children[i].implicitHeight
                   return h
                 }
                 spacing: count > 1
-                  ? Math.max(Style.space(24), Math.min(Style.space(64), (slotScroll.height - slotHeights) / count))
+                  ? Math.max(minSpacing, Math.min(Style.space(64), (slotScroll.height - slotHeights) / count))
                   : 0
 
                 Repeater {

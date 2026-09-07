@@ -81,6 +81,14 @@ warning colour when staged.
 Every frame is a `TechFrame`: a chamfered outline with an optional heavy edge
 and corner brackets, drawn on a Canvas so it recolours with the theme.
 
+On a narrow output (under about 1500 px at the theme's spacing scale, so a
+1280-wide laptop panel) the screen drops to a compact tier: the callouts form
+a three-column grid under the viewport, one category per row, each tethered to
+the card above it, and the tag word becomes a small state square. On the left,
+the item data panel is the first thing to go when the column is short: every
+slot shows before any description does, and the slot list scrolls to keep the
+focused slot in view if a category still overflows.
+
 ## Notes
 
 The screen's own chrome follows the live Omarchy theme through the shared

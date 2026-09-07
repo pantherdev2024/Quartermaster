@@ -28,6 +28,13 @@ Item {
   readonly property var leftSlots: slotsIn("outfit")
   readonly property var rightSlots: slotsIn("cyberware")
   readonly property var bottomSlots: slotsIn("chassis")
+  // Compact order is category order, so with three columns each category
+  // lands on its own row.
+  readonly property var gridSlots: leftSlots.concat(bottomSlots).concat(rightSlots)
+
+  // Compact: no room to flank the viewport, so the callouts form a grid
+  // under it, each tethered to the card above (or the nameplate).
+  readonly property bool compact: host ? host.compact : width < Style.space(900)
 
   readonly property real gutter: Style.space(30)
   readonly property real calloutHeight: Style.space(58)
@@ -49,9 +56,13 @@ Item {
     id: viewport
     anchors.horizontalCenter: parent.horizontalCenter
     // The group (viewport, nameplate, chassis row) sits centred in the pane.
-    readonly property real groupHeight: height + Style.space(12 + 30 + 34) + root.calloutHeight
+    readonly property real groupHeight: height + Style.space(12 + 30)
+      + (root.compact ? Style.space(24) + grid.height : Style.space(34) + root.calloutHeight)
     y: Math.max(Style.space(16), (parent.height - groupHeight) / 2)
-    width: Math.min(parent.width * 0.58, (parent.height * 0.50) * (16 / 9))
+    width: root.compact
+      ? Math.min(parent.width * 0.86,
+                 Math.max(Style.space(180), parent.height - Style.space(16 + 12 + 30 + 24) - grid.height) * (16 / 9))
+      : Math.min(parent.width * 0.58, (parent.height * 0.50) * (16 / 9))
     height: width * (9 / 16)
     chamfer: Style.space(14)
     cuts: ["tl", "tr", "bl", "br"]
@@ -111,6 +122,7 @@ Item {
     height: Style.space(30)
 
     Text {
+      id: plateName
       anchors.left: parent.left
       anchors.verticalCenter: parent.verticalCenter
       text: root.host && root.host.stagedThemeObject ? root.host.stagedThemeObject.name.toUpperCase() : ""
@@ -122,8 +134,10 @@ Item {
     }
 
     Text {
-      anchors.right: parent.right
+      anchors { left: plateName.right; leftMargin: Style.space(16); right: parent.right }
       anchors.verticalCenter: parent.verticalCenter
+      horizontalAlignment: Text.AlignRight
+      elide: Text.ElideRight
       text: {
         if (!root.host) return ""
         var name = root.host.activeLoadoutName
@@ -188,22 +202,59 @@ Item {
           }
         }
       }
+      if (root.compact) {
+        // Grid cards chain upward: each tethers to the card above it in the
+        // same column, and the top row to the nameplate.
+        var cards = []
+        for (var i = 0; i < grid.children.length; i++) if (grid.children[i].def) cards.push(grid.children[i])
+        for (var j = 0; j < cards.length; j++) {
+          var c = cards[j]
+          var cp = c.mapToItem(root, 0, 0)
+          var cx = cp.x + c.width / 2
+          var above = j >= grid.columns ? cards[j - grid.columns] : null
+          var toY = above ? above.mapToItem(root, 0, 0).y + above.height : nameplate.y + nameplate.height
+          drawLeader(ctx, { x: cx, y: cp.y }, { x: cx, y: toY }, lineColorFor(c.def))
+        }
+        return
+      }
       each(leftColumn, "left")
       each(rightColumn, "right")
       each(bottomRow, "bottom")
     }
   }
 
+  // ---- Compact grid ----------------------------------------------------
+  Grid {
+    id: grid
+    visible: root.compact
+    anchors { top: nameplate.bottom; topMargin: Style.space(24); left: parent.left; right: parent.right }
+    columns: 3
+    columnSpacing: Style.space(12)
+    rowSpacing: Style.space(20)
+    onHeightChanged: root.repaintLeaders()
+
+    Repeater {
+      model: root.compact ? root.gridSlots : []
+      delegate: Callout {
+        required property var modelData
+        def: modelData
+        side: "bottom"
+        width: (grid.width - grid.columnSpacing * (grid.columns - 1)) / grid.columns
+      }
+    }
+  }
+
   // ---- Callout columns -------------------------------------------------
   Column {
     id: leftColumn
+    visible: !root.compact
     anchors { left: parent.left; verticalCenter: viewport.verticalCenter }
     width: root.sideWidth
     spacing: Style.space(16)
     onHeightChanged: root.repaintLeaders()
 
     Repeater {
-      model: root.leftSlots
+      model: root.compact ? [] : root.leftSlots
       delegate: Callout {
         required property var modelData
         def: modelData
@@ -215,13 +266,14 @@ Item {
 
   Column {
     id: rightColumn
+    visible: !root.compact
     anchors { right: parent.right; verticalCenter: viewport.verticalCenter }
     width: root.sideWidth
     spacing: Style.space(16)
     onHeightChanged: root.repaintLeaders()
 
     Repeater {
-      model: root.rightSlots
+      model: root.compact ? [] : root.rightSlots
       delegate: Callout {
         required property var modelData
         def: modelData
@@ -233,12 +285,13 @@ Item {
 
   Row {
     id: bottomRow
+    visible: !root.compact
     anchors { top: nameplate.bottom; topMargin: Style.space(34); horizontalCenter: viewport.horizontalCenter }
     spacing: Style.space(16)
     onWidthChanged: root.repaintLeaders()
 
     Repeater {
-      model: root.bottomSlots
+      model: root.compact ? [] : root.bottomSlots
       delegate: Callout {
         required property var modelData
         def: modelData
@@ -304,8 +357,8 @@ Item {
           Text {
             id: labelText
             anchors.left: parent.left
-            anchors.right: tagText.visible ? tagText.left : parent.right
-            anchors.rightMargin: tagText.visible ? Style.space(6) : 0
+            anchors.right: tagText.visible ? tagText.left : (tagDot.visible ? tagDot.left : parent.right)
+            anchors.rightMargin: tagText.visible || tagDot.visible ? Style.space(6) : 0
             elide: Text.ElideRight
             text: card.def.label || ""
             color: card.focused ? root.accent : root.muted
@@ -324,7 +377,18 @@ Item {
             font.pixelSize: Style.font.caption
             font.bold: true
             font.letterSpacing: 1.2
-            visible: text !== ""
+            visible: text !== "" && !root.compact
+          }
+
+          // Compact cards have no room for the word, so the state is a
+          // square in the tag colour, echoing the leader-line endpoint.
+          Rectangle {
+            id: tagDot
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(6); height: Style.space(6)
+            color: card.tagColor
+            visible: root.compact && card.tag !== ""
           }
         }
 
