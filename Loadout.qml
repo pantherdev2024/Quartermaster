@@ -56,6 +56,15 @@ Item {
     return Math.max(Style.space(40), Math.min(full, fit))
   }
 
+  // An inventory row shows at most this many cells at once; the rest are
+  // reached by cycling with ← →, which the row already scrolls to follow.
+  // Capping the row is what keeps the left column narrow, so the character
+  // gets the width back — on a laptop panel most of all.
+  readonly property int maxVisibleCells: 6
+  readonly property real slotRowWidth: Style.space(12) + Style.space(7)
+    + root.maxVisibleCells * root.cellSize
+    + (root.maxVisibleCells - 1) * Style.space(8)
+
   // Compact tier (laptop panels): the character's callouts drop into a grid
   // under the viewport instead of flanking it. Measured against the spacing
   // scale so a roomier theme falls back to it sooner.
@@ -1329,7 +1338,11 @@ Item {
           }
 
           readonly property real gutter: Style.space(40)
-          readonly property real leftWidth: Math.max(Style.space(420), width * 0.40)
+          // Sized from the inventory row rather than from a share of the
+          // screen: six cells wide, with a floor that still holds the
+          // category tabs, and never more than it used to take.
+          readonly property real leftWidth: Math.min(width * 0.40,
+            Math.max(Style.space(320), root.slotRowWidth))
 
           // -- Left column: category tabs, then the slot list -----------
           Item {

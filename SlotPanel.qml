@@ -31,6 +31,9 @@ Item {
   readonly property string uiFont: host ? host.uiFont : Style.font.menuFamily
 
   readonly property int cellSize: host ? host.cellSize : Style.space(64)
+  // The row never grows past the host's cell cap, even in a wider column:
+  // past that the cursor cycles rather than the row stretching.
+  readonly property real rowWidth: host ? Math.min(width, host.slotRowWidth) : width
   // A multi-select slot: cells are on/off, the cursor stages nothing.
   readonly property bool multi: slotDef.multi === true
   readonly property int onCount: items.filter(function(i) { return i.on === true }).length
@@ -39,7 +42,7 @@ Item {
 
   Column {
     id: column
-    width: parent.width
+    width: root.rowWidth
     spacing: Style.space(6)
 
     // ---- Header rule ---------------------------------------------------
