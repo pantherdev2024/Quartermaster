@@ -29,7 +29,7 @@ Item {
   readonly property color line: host ? host.line : Color.muted
   readonly property string uiFont: host ? host.uiFont : Style.font.menuFamily
 
-  readonly property int cellSize: Style.space(64)
+  readonly property int cellSize: host ? host.cellSize : Style.space(64)
   // A multi-select slot: cells are on/off, the cursor stages nothing.
   readonly property bool multi: slotDef.multi === true
   readonly property int onCount: items.filter(function(i) { return i.on === true }).length

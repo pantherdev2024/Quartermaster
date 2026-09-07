@@ -30,6 +30,30 @@ Item {
   property bool applying: false
   property string statusText: ""
 
+  // Cell size: the inventory cells shrink until the tallest category fits
+  // its column with the dock, so no screen ever has to scroll a slot list.
+  // The column's fixed costs are the tabs, the margins around the list, and
+  // the header row and frame padding of every slot and the dock.
+  readonly property int maxSlotsPerCategory: {
+    var counts = {}, m = 0
+    for (var i = 0; i < slotDefs.length; i++) {
+      var c = slotDefs[i].cat
+      if (c === "*") continue
+      counts[c] = (counts[c] || 0) + 1
+      m = Math.max(m, counts[c])
+    }
+    return m
+  }
+  readonly property int cellSize: {
+    var full = Style.space(64)
+    var column = leftColumn.height
+    if (column <= 0) return full
+    var n = root.maxSlotsPerCategory
+    var fixed = Style.space(36 + 22 + 44) + Style.space(42) * (n + 1) + Style.space(16) * (n - 1)
+    var fit = Math.floor((column - fixed) / (n + 1))
+    return Math.max(Style.space(40), Math.min(full, fit))
+  }
+
   // Compact tier (laptop panels): the character's callouts drop into a grid
   // under the viewport instead of flanking it. Measured against the spacing
   // scale so a roomier theme falls back to it sooner.
