@@ -18,8 +18,9 @@ Item {
   readonly property int stockCount: items.filter(function(i) { return !i.isNew }).length
   readonly property int selected: host ? host.selectedIndexFor(slotDef.id) : 0
   readonly property bool focused: host && host.currentSlot && host.currentSlot.id === slotDef.id
-  // Sitting on the dock's NEW cell is cursor state, not a staged change.
+  // Fitted: the slot holds a change that has not been deployed.
   readonly property bool staged: host && host.staged[slotDef.id] && host.staged[slotDef.id] !== "__new" ? true : false
+  readonly property string fittedId: host && host.staged[slotDef.id] ? String(host.staged[slotDef.id]) : ""
 
   readonly property color fg: host ? host.fg : Color.foreground
   readonly property color muted: host ? host.muted : Color.muted
@@ -86,7 +87,7 @@ Item {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         text: root.stockCount === 0 ? "NONE"
-          : (root.staged ? "STAGED · " : "")
+          : (root.staged ? "FITTED · " : "")
             + (root.multi ? String(root.onCount).padStart(2, "0") + " / " : "")
             + String(root.stockCount).padStart(2, "0")
         color: root.staged ? root.warn : root.muted
@@ -141,6 +142,7 @@ Item {
 
           readonly property bool isSelected: cell.index === root.selected
           readonly property bool isEquipped: cell.modelData.equipped === true
+          readonly property bool isFitted: !root.multi && root.fittedId !== "" && String(cell.modelData.id) === root.fittedId
 
           Item {
             visible: cell.lead > 0
@@ -287,8 +289,8 @@ Item {
             anchors.leftMargin: Style.space(6) + cell.lead
             anchors.rightMargin: Style.space(3)
             height: Style.space(3)
-            color: cell.changed ? root.warn : root.good
-            visible: root.multi ? (cell.modelData.on === true || cell.changed) : cell.isEquipped
+            color: cell.changed || cell.isFitted ? root.warn : root.good
+            visible: root.multi ? (cell.modelData.on === true || cell.changed) : (cell.isEquipped || cell.isFitted)
           }
 
           MouseArea {
@@ -299,7 +301,7 @@ Item {
                 return d.id === root.slotDef.id
               })
               if (root.multi) root.host.modsCursor = cell.index
-              else root.host.stageCurrent(cell.modelData.id)
+              else root.host.previewItem(cell.modelData.id)
             }
           }
         }

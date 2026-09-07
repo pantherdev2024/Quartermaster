@@ -6,7 +6,7 @@ import qs.Commons
 // The character: the mock desktop in a bracketed viewport with every slot's
 // current fitting called out around it — outfit down the left, cyberware down
 // the right, chassis along the foot — each tethered to the viewport by a
-// leader line. Callouts read from the same staged/equipped state as the slot
+// leader line. Callouts read from the same preview/fitted/live state as the slot
 // list, so browsing on the left re-labels the character on the right at once.
 Item {
   id: root
@@ -142,10 +142,12 @@ Item {
       text: {
         if (!root.host) return ""
         var name = root.host.activeLoadoutName
-        var state = root.host.dirty ? "STAGED" : "EQUIPPED"
-        return name ? "LOADOUT  " + name.toUpperCase() + "  ·  " + state : (root.host.dirty ? "STAGED CONFIGURATION" : "CURRENT CONFIGURATION")
+        var state = root.host.previewing ? "PREVIEW  ·  ENTER FITS"
+          : root.host.dirty ? "FITTED  ·  D DEPLOYS" : "EQUIPPED"
+        if (name) return "LOADOUT  " + name.toUpperCase() + "  ·  " + state
+        return root.host.previewing || root.host.dirty ? state : "CURRENT CONFIGURATION"
       }
-      color: root.host && root.host.dirty ? root.warn : root.muted
+      color: root.host && root.host.previewing ? root.accent : (root.host && root.host.dirty ? root.warn : root.muted)
       font.family: root.uiFont
       font.pixelSize: Style.font.caption
       font.letterSpacing: 2
@@ -165,6 +167,7 @@ Item {
     function lineColorFor(def) {
       if (!root.host) return root.line
       if (root.host.currentSlot && root.host.currentSlot.id === def.id) return root.accent
+      if (root.host.preview[def.id] !== undefined) return root.accent
       if (root.host.staged[def.id]) return root.warn
       return root.line
     }
@@ -311,10 +314,14 @@ Item {
     readonly property var item: root.host ? root.host.selectedItem(def.id) : null
     readonly property bool focused: root.host && root.host.currentSlot && root.host.currentSlot.id === def.id
     readonly property bool staged: root.host && root.host.staged[def.id] ? true : false
+    // Previewed: the cursor is trying something on that differs from what
+    // the slot holds (fitted, else live).
+    readonly property bool previewed: root.host && root.host.preview[def.id] !== undefined
+      && root.host.preview[def.id] !== (root.host.staged[def.id] || root.host.equippedId(def.id))
     // A multi slot is always worn: its value is the whole layout.
     readonly property bool multi: def.multi === true
-    readonly property string tag: staged ? "STAGED" : (multi || (item && item.equipped) ? "EQUIPPED" : (item ? "" : "EMPTY"))
-    readonly property color tagColor: staged ? root.warn : (multi || (item && item.equipped) ? root.good : root.muted)
+    readonly property string tag: previewed ? "PREVIEW" : staged ? "FITTED" : (multi || (item && item.equipped) ? "EQUIPPED" : (item ? "" : "EMPTY"))
+    readonly property color tagColor: previewed ? root.accent : staged ? root.warn : (multi || (item && item.equipped) ? root.good : root.muted)
     // No room for the tag word: compact, or a narrow card in the wide layout.
     readonly property bool tight: root.compact || width < Style.space(170)
 

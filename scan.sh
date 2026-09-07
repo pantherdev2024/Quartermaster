@@ -235,9 +235,10 @@ jq -n \
   --argjson textSizes "$(emit_text_sizes)" \
   --argjson barWidgets "$(emit_bar_widgets)" \
   --argjson barLayout "$(emit_bar_layout)" \
+  --argjson lastDeploy "$(cat "${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/loadout/last-deploy.json" 2>/dev/null || echo null)" \
   --arg currentBackground "$(readlink -f ~/.local/state/omarchy/current/background 2>/dev/null)" \
   '{themes:$themes, loadouts:$loadouts, fonts:$fonts, terminals:$terminals, editors:$editors,
     browsers:$browsers, agents:$agents, barPositions:$barPositions,
     barTransparency:$barTransparency, textSizes:$textSizes,
-    barWidgets:$barWidgets, barLayout:$barLayout,
+    barWidgets:$barWidgets, barLayout:$barLayout, lastDeploy:$lastDeploy,
     currentBackground:$currentBackground}'

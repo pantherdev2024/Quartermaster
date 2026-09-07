@@ -1,8 +1,9 @@
 # Loadout
 
 An RPG equip screen for Omarchy. Slot in themes, backgrounds, fonts and
-defaults, watch a miniature desktop re-fit itself as you browse, then equip
-for real. Save a fitting as a loadout and swap between them in one move.
+defaults, watch a miniature desktop re-fit itself as you browse, fit what you
+like, then deploy the whole fitting for real. Save a fitting as a loadout and
+swap between them in one move.
 
 ## Usage
 
@@ -12,8 +13,12 @@ for real. Save a fitting as a loadout and swap between them in one move.
   the last stop), `← →` browse that slot's inventory
 - On BAR MODS, `← →` only move the cursor: `SPACE` toggles the widget under
   it on or off, `SHIFT + ← →` slides it along the bar
-- `ENTER` equips everything staged, `ESC` discards and closes
-- `S` saves the current fitting as a loadout, `X` deletes the selected one
+- `ENTER` fits the item under the cursor into its slot (or fits a whole
+  saved loadout)
+- `D` deploys the fitting for real and closes the screen; clicking the pill
+  in the top corner does the same
+- `ESC` closes; if anything is fitted but not deployed it asks first
+- `S` saves the fitting on screen as a loadout, `X` deletes the selected one
 
 The screen opens on Hyprland's focused monitor. A summon payload can name an
 output instead, which is handy for scripting and screenshots:
@@ -22,8 +27,11 @@ output instead, which is handy for scripting and screenshots:
 omarchy-shell shell toggle io.github.pantherdev2024.loadout '{"screen":"eDP-1"}'
 ```
 
-Browsing only *stages* a selection: the mini desktop repaints instantly and
-nothing on the real system changes until you press ENTER.
+Three steps, on purpose. **Browsing previews**: the mini desktop repaints and
+nothing else moves; leave the slot without fitting and the preview snaps back.
+**ENTER fits**: the item locks into the slot and the fitting is what you are
+building, still touching nothing. **D deploys**: the fitting's commands run
+and the screen closes. Nothing on the real system changes before D.
 
 ## Categories and slots
 
@@ -33,7 +41,7 @@ the top of the left column. The active pill spells out its name.
 | Category | Slot | Inventory source | Applied with |
 |----------|------|------------------|--------------|
 | **Outfit** | Theme | `~/.config/omarchy/themes` + `/usr/share/omarchy/themes` | `omarchy-theme-set` |
-| | Background | the staged theme's `backgrounds/` | `omarchy-theme-bg-set` |
+| | Background | the fitted theme's `backgrounds/` | `omarchy-theme-bg-set` |
 | | Font | `omarchy font list` | `omarchy-font-set` |
 | **Chassis** | Bar position | top / bottom / left / right | `omarchy-bar position` |
 | | Bar surface | solid / transparent | `omarchy-bar transparent` |
@@ -49,16 +57,30 @@ Cyberware is the tooling wired into it. Chassis choices preview live: the
 mini desktop moves its bar, drops the bar fill, scales its type, and mirrors
 the bar's widget layout.
 
+### Deploying
+
+`D` hands the fitting to `deploy.sh`, which runs one Omarchy command per
+fitted slot, in a fixed order: theme first (the background depends on it),
+then the bar and text size, then the default apps, and the font last. The
+font goes last because `omarchy-font-set` restarts the shell, and Loadout
+lives inside the shell: anything still queued there would die with it. For
+the same reason the runner is detached from the shell (`setsid -f`), and
+the screen closes before the commands run. The runner reports back with a
+desktop notification ("Loadout deployed · 3 changes", or which command
+failed), a log in `~/.local/state/omarchy/loadout/deploy.log`, and a result
+file the next open folds into the status pill.
+
 ### Bar mods
 
 Bar mods is the one multi-select slot. Its cells are the bar's widgets in bar
 order, with dividers between the left, centre and right sections, then a
 bench of the widgets that are off. Its value is the whole layout as one
-string (`left:a,b|center:c|right:d`), so staging, saving and "is it live"
-work exactly as for every other slot, and a saved loadout records the entire
-bar arrangement.
+string (`left:a,b|center:c|right:d`), so previewing, fitting, saving and "is
+it live" work exactly as for every other slot, and a saved loadout records
+the entire bar arrangement. SPACE and SHIFT+arrows edit the preview; ENTER
+fits the arrangement.
 
-Equipping diffs the live layout against the staged one and runs, in order:
+Deploying diffs the live layout against the fitted one and runs, in order:
 `omarchy plugin disable` for every widget leaving, `omarchy plugin enable
 --section --index` for every widget joining at its final spot, then
 `omarchy bar move --section --index` for anything else out of place, walked
@@ -77,21 +99,20 @@ in a terminal, which is not what "apply" should do from an equip screen.
 
 Adding a slot means adding one entry to `slotDefs` in `Loadout.qml` (with its
 category, glyph and apply-command prefix) and a matching branch in
-`itemsFor()`. The staged item id is appended to the prefix as the final
+`itemsFor()`. The fitted item id is appended to the prefix as the final
 argument. New slots appear in the character view's callouts automatically.
 
 ## Loadouts
 
 The row across the top centre holds saved loadouts, one small card each with
 the loadout's theme as its thumbnail and the name you gave it. A loadout
-records the fitting as it stands, staged choices included, as a map of slot id
-to item id in `~/.local/share/omarchy/loadouts/<id>.json`. Hovering a card
-previews it on the character and leaving the card puts back whatever was
-staged; clicking it, or moving onto it with the keyboard, stages every slot it
-recorded that differs from what is live, so equipping one is: pick it, press
-`ENTER`. The card whose fitting the desktop is actually wearing is ringed. The
-nameplate under the character names the loadout it currently represents; a
-hand-picked change clears that until you save again.
+records the fitting as shown on screen as a map of slot id to item id in
+`~/.local/share/omarchy/loadouts/<id>.json`. Hovering a card, or moving onto
+it with the keyboard, previews it on the character; `ENTER` fits every slot
+it recorded that differs from what is live; `D` deploys. The card whose
+fitting the desktop is actually wearing is ringed. The nameplate under the
+character names the loadout it currently represents; a hand-picked change
+clears that until you save again.
 
 ## How it works
 
@@ -104,9 +125,9 @@ The centre of the character view is a *mock* desktop, not a screen capture. A
 capture can only show what is already applied, and this overlay covers the
 screen anyway. Mocking it is what makes previewing an unapplied fitting
 possible: it moves its bar, drops the bar fill, scales its type and repaints
-in the staged palette. Around it, one callout per slot names what is worn or
-staged, tethered by a leader line that turns accent under the cursor and the
-warning colour when staged.
+in the previewed palette. Around it, one callout per slot names what is worn,
+previewed or fitted, tethered by a leader line that turns accent under the cursor and the
+warning colour when fitted.
 
 Every frame is a `TechFrame`: a chamfered outline with an optional heavy edge
 and corner brackets, drawn on a Canvas so it recolours with the theme.
@@ -126,7 +147,7 @@ The screen's own chrome follows the live Omarchy theme through the shared
 `Color` and `Style` singletons, the same way the stock menu and clipboard
 overlays do: menu surface colours, the theme's font and type scale, its corner
 radius and control-border tokens. Only the mini desktop repaints in the
-*staged* theme, because that is the preview.
+*previewed* theme, because that is the preview.
 
 The backdrop is deliberately opaque. Besides suiting the genre, a partially
 transparent child on this layer surface has its alpha dropped and paints
@@ -148,5 +169,6 @@ ItemData.qml       description panel for whatever the cursor is on
 TechFrame.qml      chamfered frame with heavy edge and corner brackets
 scan.sh            inventory as JSON (widgets and bar layout included)
 loadouts.sh        list / save / delete saved loadouts
+deploy.sh          runs a fitting's commands detached from the shell and reports back
 agent-set.sh       records the default agent without launching it
 ```

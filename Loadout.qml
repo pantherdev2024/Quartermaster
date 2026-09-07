@@ -16,9 +16,10 @@ import qs.Ui
 // painted in whatever is currently staged, plus a detail card for the item
 // under the cursor. The bottom strip is the character sheet: real metrics.
 //
-// Staging is separate from applying on purpose: moving the cursor repaints the
-// preview instantly and touches nothing, and only APPLY runs the omarchy
-// commands that change the real system.
+// Three steps, on purpose. Browsing PREVIEWS: the character repaints and
+// nothing else moves. ENTER FITS the preview into the slot: the fitting is
+// what you are building, still touching nothing. D DEPLOYS the fitting: the
+// omarchy commands run, detached from the shell, and the screen closes.
 Item {
   id: root
 
@@ -69,8 +70,10 @@ Item {
   // ---- Categories and slots ------------------------------------------
   // OUTFIT is what the desktop wears, CHASSIS is the frame it hangs on, and
   // CYBERWARE is the tooling wired into it. A slot's `apply` is the command
-  // prefix; the staged item id is appended as the final argument. Adding a
-  // slot means one entry here and a matching branch in itemsFor().
+  // prefix; the fitted item id is appended as the final argument. `order` is
+  // the deploy order: theme first because the background depends on it, the
+  // font last because it restarts the shell. Adding a slot means one entry
+  // here and a matching branch in itemsFor().
   readonly property var categories: [
     { id: "outfit",    label: "OUTFIT",    icon: "󰩻" },
     { id: "chassis",   label: "CHASSIS",   icon: "󰕮" },
@@ -78,19 +81,19 @@ Item {
   ]
 
   readonly property var slotDefs: [
-    { id: "theme",          cat: "outfit",    label: "THEME",        icon: "󰏘", apply: ["omarchy-theme-set"] },
-    { id: "background",     cat: "outfit",    label: "BACKGROUND",   icon: "󰸉", apply: ["omarchy-theme-bg-set"] },
-    { id: "font",           cat: "outfit",    label: "FONT",         icon: "󰛖", apply: ["omarchy-font-set"] },
-    { id: "barPosition",    cat: "chassis",   label: "BAR POSITION", icon: "󰍹", apply: ["omarchy-bar", "position"] },
-    { id: "barTransparent", cat: "chassis",   label: "BAR SURFACE",  icon: "󰗌", apply: ["omarchy-bar", "transparent"] },
-    { id: "textSize",       cat: "chassis",   label: "TEXT SIZE",    icon: "󰉡", apply: ["omarchy-display-text-size"] },
+    { id: "theme",          cat: "outfit",    label: "THEME",        icon: "󰏘", order: 10, apply: ["omarchy-theme-set"] },
+    { id: "background",     cat: "outfit",    label: "BACKGROUND",   icon: "󰸉", order: 20, apply: ["omarchy-theme-bg-set"] },
+    { id: "font",           cat: "outfit",    label: "FONT",         icon: "󰛖", order: 90, apply: ["omarchy-font-set"] },
+    { id: "barPosition",    cat: "chassis",   label: "BAR POSITION", icon: "󰍹", order: 30, apply: ["omarchy-bar", "position"] },
+    { id: "barTransparent", cat: "chassis",   label: "BAR SURFACE",  icon: "󰗌", order: 31, apply: ["omarchy-bar", "transparent"] },
+    { id: "textSize",       cat: "chassis",   label: "TEXT SIZE",    icon: "󰉡", order: 40, apply: ["omarchy-display-text-size"] },
     // The bar's widget layout: a multi-select slot. `apply` is only a marker;
-    // applyStaged() asks barModsCommands() for the real command list.
-    { id: "barMods",        cat: "chassis",   label: "BAR MODS",     icon: "󰐱", apply: ["omarchy-bar"], multi: true },
-    { id: "terminal",       cat: "cyberware", label: "TERMINAL",     icon: "󰆍", apply: ["omarchy-default-terminal"] },
-    { id: "editor",         cat: "cyberware", label: "EDITOR",       icon: "󰅩", apply: ["omarchy-default-editor"] },
-    { id: "browser",        cat: "cyberware", label: "BROWSER",      icon: "󰖟", apply: ["omarchy-default-browser"] },
-    { id: "agent",          cat: "cyberware", label: "AGENT",        icon: "󰚩", apply: [pluginDir + "/agent-set.sh"] },
+    // deployCommands() asks barModsCommands() for the real command list.
+    { id: "barMods",        cat: "chassis",   label: "BAR MODS",     icon: "󰐱", order: 32, apply: ["omarchy-bar"], multi: true },
+    { id: "terminal",       cat: "cyberware", label: "TERMINAL",     icon: "󰆍", order: 50, apply: ["omarchy-default-terminal"] },
+    { id: "editor",         cat: "cyberware", label: "EDITOR",       icon: "󰅩", order: 51, apply: ["omarchy-default-editor"] },
+    { id: "browser",        cat: "cyberware", label: "BROWSER",      icon: "󰖟", order: 52, apply: ["omarchy-default-browser"] },
+    { id: "agent",          cat: "cyberware", label: "AGENT",        icon: "󰚩", order: 53, apply: [pluginDir + "/agent-set.sh"] },
     // Saved loadouts: present in every category as the last slot. No apply
     // command of its own — picking one stages every slot it recorded.
     { id: "loadouts",       cat: "*",         label: "SAVED LOADOUTS", icon: "󰆓", apply: null, wide: true }
@@ -139,7 +142,7 @@ Item {
   }
 
   readonly property string liveLayoutString: root.encodeLayout((root.inventory && root.inventory.barLayout) || {})
-  readonly property string effectiveLayoutString: root.staged["barMods"] || root.liveLayoutString
+  readonly property string effectiveLayoutString: root.preview["barMods"] || root.staged["barMods"] || root.liveLayoutString
   readonly property var previewBarLayout: root.decodeLayout(root.effectiveLayoutString)
 
   // Widgets that sit somewhere else in the fitting than live: a different
@@ -206,8 +209,7 @@ Item {
     return items[Math.max(0, Math.min(items.length - 1, root.modsCursor))]
   }
   function stageLayout(l, followId) {
-    var str = root.encodeLayout(l)
-    root.stageCurrent(str === root.liveLayoutString ? "" : str)
+    root.previewItem(root.encodeLayout(l))
     var items = root.itemsFor("barMods")
     for (var i = 0; i < items.length; i++) if (items[i].id === followId) { root.modsCursor = i; return }
   }
@@ -305,8 +307,13 @@ Item {
     return cmds
   }
 
-  // Staged selection per slot id. Empty means "unchanged from what's live".
+  // The fitting: fitted item per slot id. Empty means "unchanged from live".
   property var staged: ({})
+  // The preview: what the cursor is on, for one slot, or for every slot a
+  // saved loadout recorded. Cleared when the cursor leaves that slot.
+  property var preview: ({})
+  property string previewSlot: ""
+  readonly property bool previewing: previewSlot !== ""
 
   // The cursor is a single index into slotDefs; the active category is
   // whatever category that slot belongs to, so there is no second piece of
@@ -316,7 +323,10 @@ Item {
   // The dock belongs to no category, so while the cursor sits on it the tabs
   // keep showing whichever category the cursor came from.
   property string pinnedCategory: "outfit"
-  onSlotIndexChanged: if (currentSlot.cat !== "*") pinnedCategory = currentSlot.cat
+  onSlotIndexChanged: {
+    if (currentSlot.cat !== "*") pinnedCategory = currentSlot.cat
+    root.clearPreview()
+  }
   readonly property string currentCategory: currentSlot.cat === "*" ? pinnedCategory : currentSlot.cat
   readonly property int currentCategoryIndex: {
     for (var i = 0; i < categories.length; i++)
@@ -452,65 +462,100 @@ Item {
     return false
   }
 
-  function stageCurrent(itemId) {
-    if (root.currentSlot.id === "loadouts") { root.stageLoadout(itemId); return }
-    var next = {}
-    for (var k in root.staged) next[k] = root.staged[k]
-    next[root.currentSlot.id] = itemId
-    // Changing theme invalidates a background staged from the old theme.
-    if (root.currentSlot.id === "theme") next["background"] = ""
-    // A hand-picked change means the fitting is no longer exactly a saved one.
-    next["loadouts"] = ""
-    root.staged = next
+  // ---- Preview and fit ---------------------------------------------------
+  function isLiveValue(slotId, id) {
+    if (slotId === "background") {
+      // The live background resolves through a different path from the
+      // theme's own folder, so compare file names.
+      var live = String((root.inventory && root.inventory.currentBackground) || "").split("/").pop()
+      return String(id).split("/").pop() === live
+    }
+    return root.equippedId(slotId) === id
   }
 
-  // Stage a saved loadout: every recorded slot that differs from what is
-  // live. Moving onto the NEW cell stages nothing and keeps what was staged.
-  function stageLoadout(loadoutId) {
+  // Browsing: the cursor's choice for the current slot, on the character only.
+  function previewItem(itemId) {
+    if (root.currentSlot.id === "loadouts") { root.previewLoadout(itemId); return }
+    var next = {}
+    next[root.currentSlot.id] = itemId
+    root.preview = next
+    root.previewSlot = root.currentSlot.id
+  }
+
+  // A saved loadout previews as a whole: every slot it recorded.
+  function previewLoadout(loadoutId) {
     var items = root.itemsFor("loadouts")
     var item = null
     for (var i = 0; i < items.length; i++) if (items[i].id === loadoutId) item = items[i]
-    var next = {}
-    if (item && item.isNew) {
-      for (var k in root.staged) next[k] = root.staged[k]
-      next["loadouts"] = loadoutId
-      root.staged = next
+    if (!item) return
+    var next = { loadouts: loadoutId }
+    if (!item.isNew) for (var slot in item.slots) next[slot] = item.slots[slot]
+    root.preview = next
+    root.previewSlot = "loadouts"
+  }
+
+  function clearPreview() {
+    root.hoverOwnsPreview = false
+    if (root.previewSlot === "") return
+    root.preview = ({})
+    root.previewSlot = ""
+  }
+
+  // ENTER: the preview becomes part of the fitting.
+  function fitPreview() {
+    if (root.promptOpen || root.discardPromptOpen || root.applying) return
+    if (root.previewSlot === "") {
+      // Nothing previewed. On the loadouts row ENTER takes the card under
+      // the cursor; on a slot the cursor already sits on the fitted item.
+      if (!root.onLoadouts) return
+      var sel = root.selectedItem("loadouts")
+      if (!sel) return
+      if (sel.isNew) { root.openSavePrompt(); return }
+      root.previewLoadout(sel.id)
+    }
+    if (root.previewSlot === "loadouts" && root.preview["loadouts"] === "__new") {
+      root.openSavePrompt()
       return
     }
-    if (!item) return
-    for (var slot in item.slots) {
-      var wanted = item.slots[slot]
-      var live = slot === "background"
-        ? String(root.inventory.currentBackground || "").split("/").pop()
-        : root.equippedId(slot)
-      var current = slot === "background" ? String(wanted).split("/").pop() : wanted
-      next[slot] = current === live ? "" : wanted
+    var next = {}
+    for (var k in root.staged) next[k] = root.staged[k]
+    if (root.previewSlot === "loadouts") {
+      for (var p in root.preview)
+        next[p] = p === "loadouts" || !root.isLiveValue(p, root.preview[p]) ? root.preview[p] : ""
+    } else {
+      var id = root.preview[root.previewSlot]
+      next[root.previewSlot] = root.isLiveValue(root.previewSlot, id) ? "" : id
+      // Changing theme invalidates a background fitted from the old theme.
+      if (root.previewSlot === "theme") next["background"] = ""
+      // A hand-picked change means the fitting is no longer exactly a saved one.
+      next["loadouts"] = ""
     }
-    next["loadouts"] = loadoutId
     root.staged = next
+    root.clearPreview()
+    root.statusText = ""
   }
 
-  // Hovering a loadout card previews it on the character and leaving the
-  // card puts back whatever was staged before; clicking makes it stick.
-  property var hoverRestore: null
+  // The loadout cards: hovering previews and leaving puts things back,
+  // unless the keyboard already had a preview going; clicking moves the
+  // cursor onto the card.
+  property bool hoverOwnsPreview: false
   function hoverLoadout(loadoutId) {
-    if (root.promptOpen || root.applying) return
-    if (root.hoverRestore === null) root.hoverRestore = root.staged
-    root.stageLoadout(loadoutId)
+    if (root.promptOpen || root.discardPromptOpen || root.applying) return
+    var owns = root.previewSlot === "" || root.hoverOwnsPreview
+    root.previewLoadout(loadoutId)
+    root.hoverOwnsPreview = owns
   }
   function unhoverLoadout() {
-    if (root.hoverRestore === null) return
-    root.staged = root.hoverRestore
-    root.hoverRestore = null
+    if (root.hoverOwnsPreview) root.clearPreview()
   }
   function pickLoadout(loadoutId) {
-    if (root.promptOpen || root.applying) return
-    root.hoverRestore = null
+    if (root.promptOpen || root.discardPromptOpen || root.applying) return
     root.slotIndex = root.loadoutsSlotIndex
-    root.stageLoadout(loadoutId)
+    root.previewLoadout(loadoutId)
   }
 
-  // The fitting as it would be after ENTER: staged where staged, live otherwise.
+  // The fitting as shown: previewed where previewed, fitted where fitted,
+  // live otherwise. Saving records what is on screen.
   function currentFitting() {
     var slots = {}
     for (var i = 0; i < root.slotDefs.length; i++) {
@@ -556,7 +601,7 @@ Item {
   // Name of the saved loadout the character currently represents, if any.
   readonly property string activeLoadoutName: {
     var items = root.itemsFor("loadouts")
-    var stagedId = root.staged["loadouts"]
+    var stagedId = root.preview["loadouts"] || root.staged["loadouts"]
     for (var i = 0; i < items.length; i++) {
       if (items[i].isNew) continue
       if (stagedId ? items[i].id === stagedId : items[i].equipped) return items[i].name
@@ -567,7 +612,7 @@ Item {
   function selectedIndexFor(slotId) {
     var items = root.itemsFor(slotId)
     if (slotId === "barMods") return items.length ? Math.max(0, Math.min(items.length - 1, root.modsCursor)) : 0
-    var wanted = root.staged[slotId]
+    var wanted = root.preview[slotId] || root.staged[slotId]
     for (var i = 0; i < items.length; i++) {
       if (wanted ? items[i].id === wanted : items[i].equipped) return i
     }
@@ -581,7 +626,7 @@ Item {
     var i = root.selectedIndexFor(root.currentSlot.id) + delta
     if (i < 0) i = items.length - 1
     if (i >= items.length) i = 0
-    root.stageCurrent(items[i].id)
+    root.previewItem(items[i].id)
   }
 
   // Up/down stays inside the active category and wraps.
@@ -640,7 +685,10 @@ Item {
     root.targetScreen = root.resolveTargetScreen(payloadJson)
     root.opened = true
     root.staged = ({})
-    root.hoverRestore = null
+    root.preview = ({})
+    root.previewSlot = ""
+    root.hoverOwnsPreview = false
+    root.discardPromptOpen = false
     root.slotIndex = 0
     root.modsCursor = 0
     root.statusText = ""
@@ -650,6 +698,19 @@ Item {
 
   function close() {
     root.opened = false
+  }
+
+  // ESC and the backdrop: a fitting that was never deployed is work, so ask.
+  property bool discardPromptOpen: false
+  function requestClose() {
+    if (root.dirty) { root.discardPromptOpen = true; return }
+    root.dismiss()
+  }
+  function discardAndClose() {
+    root.discardPromptOpen = false
+    root.staged = ({})
+    root.clearPreview()
+    root.dismiss()
   }
 
   function dismiss() {
@@ -671,52 +732,48 @@ Item {
     }
   }
 
-  // ---- Applying -------------------------------------------------------
-  function applyStaged() {
-    if (!root.dirty || root.applying) return
+  // ---- Deploying -------------------------------------------------------
+  // The fitting's commands in deploy order (see slotDefs): theme first, the
+  // quick shell-side changes, the defaults, and last anything that restarts
+  // the shell, because a command after a restart would find no shell.
+  function deployCommands() {
+    var defs = root.slotDefs.slice().sort(function(a, b) { return (a.order || 0) - (b.order || 0) })
     var cmds = []
-    for (var i = 0; i < root.slotDefs.length; i++) {
-      var def = root.slotDefs[i]
+    for (var i = 0; i < defs.length; i++) {
+      var def = defs[i]
       var value = root.staged[def.id]
       if (!def.apply || !value) continue
       if (def.multi) cmds = cmds.concat(root.barModsCommands(value))
       else cmds.push(def.apply.concat([value]))
     }
+    return cmds
+  }
+
+  // D: run the fitting for real and leave. deploy.sh runs detached from the
+  // shell, so a font change (which restarts the shell) cannot cut it short;
+  // it reports back with a notification and a result file scan.sh reads.
+  function deploy() {
+    if (!root.dirty || root.applying || root.promptOpen || root.discardPromptOpen) return
+    var cmds = root.deployCommands()
     if (cmds.length === 0) return
-    root.hoverRestore = null
     root.applying = true
-    root.statusText = "applying…"
-    applyQueue.queue = cmds
-    applyQueue.step()
+    root.statusText = "deploying…"
+    deployProc.command = ["setsid", "-f", root.pluginDir + "/deploy.sh", JSON.stringify(cmds)]
+    deployProc.running = true
   }
 
-  QtObject {
-    id: applyQueue
-    property var queue: []
-    property int index: 0
-
-    function step() {
-      if (applyQueue.index >= applyQueue.queue.length) {
-        applyQueue.index = 0
-        applyQueue.queue = []
-        root.applying = false
-        root.staged = ({})
-        root.statusText = "equipped"
-        scanProc.running = true
-        return
-      }
-      applyProc.command = applyQueue.queue[applyQueue.index]
-      applyQueue.index += 1
-      applyProc.running = true
-    }
-  }
+  readonly property var lastDeploy: (root.inventory && root.inventory.lastDeploy) || null
+  readonly property bool lastDeployFailed: root.lastDeploy && Number(root.lastDeploy.failed) > 0 ? true : false
 
   Process {
-    id: applyProc
+    id: deployProc
     running: false
     onExited: function(code) {
-      if (code !== 0) root.statusText = "apply failed: " + applyProc.command.join(" ")
-      applyQueue.step()
+      root.applying = false
+      if (code !== 0) { root.statusText = "deploy did not start"; return }
+      root.staged = ({})
+      root.clearPreview()
+      root.dismiss()
     }
   }
 
@@ -734,6 +791,7 @@ Item {
       for (var k in root.staged) next[k] = root.staged[k]
       next["loadouts"] = root.pendingLoadoutId
       root.staged = next
+      root.clearPreview()
       root.slotIndex = root.loadoutsSlotIndex
       scanProc.running = true
     }
@@ -825,7 +883,7 @@ Item {
 
     MouseArea {
       anchors.fill: parent
-      onClicked: root.dismiss()
+      onClicked: root.requestClose()
     }
 
     Item {
@@ -837,8 +895,14 @@ Item {
       Keys.onPressed: function(event) {
         if (root.promptOpen) return   // the name prompt owns the keyboard
         var k = event.key
+        if (root.discardPromptOpen) {
+          if (k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Y) root.discardAndClose()
+          else if (k === Qt.Key_Escape || k === Qt.Key_N) root.discardPromptOpen = false
+          event.accepted = true
+          return
+        }
         if (k === Qt.Key_Escape) {
-          root.dismiss()
+          root.requestClose()
         } else if (k === Qt.Key_Up || k === Qt.Key_K) {
           root.moveSlot(-1)
         } else if (k === Qt.Key_Down || k === Qt.Key_J) {
@@ -858,9 +922,9 @@ Item {
         } else if (k >= Qt.Key_1 && k < Qt.Key_1 + root.categories.length) {
           root.selectCategory(root.categories[k - Qt.Key_1].id)
         } else if (k === Qt.Key_Return || k === Qt.Key_Enter) {
-          var sel = root.onLoadouts ? root.selectedItem("loadouts") : null
-          if (sel && sel.isNew) root.openSavePrompt()
-          else root.applyStaged()
+          root.fitPreview()
+        } else if (k === Qt.Key_D) {
+          root.deploy()
         } else if (k === Qt.Key_S) {
           root.openSavePrompt()
         } else if (k === Qt.Key_X || k === Qt.Key_Delete) {
@@ -980,6 +1044,74 @@ Item {
         }
       }
 
+      // ---- Discard prompt ----------------------------------------------
+      Item {
+        anchors.fill: parent
+        visible: root.discardPromptOpen
+        z: 10
+
+        Rectangle {
+          anchors.fill: parent
+          color: Qt.rgba(root.backdrop.r, root.backdrop.g, root.backdrop.b, 0.72)
+          MouseArea { anchors.fill: parent; onClicked: root.discardPromptOpen = false }
+        }
+
+        TechFrame {
+          anchors.centerIn: parent
+          width: Style.space(460)
+          height: discardColumn.implicitHeight + Style.space(48)
+          chamfer: Style.space(14)
+          fill: root.paneBgFocused
+          stroke: root.warn
+          brackets: true
+          bracketColor: root.warn
+          bracketLength: Style.space(18)
+          bracketInset: 5
+          edge: "left"
+          edgeColor: root.warn
+          edgeWidth: Style.space(4)
+
+          MouseArea { anchors.fill: parent; onClicked: {} }
+
+          Column {
+            id: discardColumn
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: Style.space(24) }
+            anchors.leftMargin: Style.space(30)
+            spacing: Style.space(12)
+
+            Text {
+              text: "DISCARD FITTING?"
+              color: root.warn
+              font.family: root.uiFont
+              font.pixelSize: Style.font.title
+              font.bold: true
+              font.letterSpacing: 4
+            }
+
+            Text {
+              width: parent.width
+              text: {
+                var n = 0
+                for (var k in root.staged) if (k !== "loadouts" && root.staged[k]) n++
+                return n + (n === 1 ? " slot is" : " slots are") + " fitted but not deployed. Leave without deploying?"
+              }
+              color: root.muted
+              font.family: root.uiFont
+              font.pixelSize: Style.font.bodySmall
+              wrapMode: Text.WordWrap
+            }
+
+            Text {
+              text: "ENTER  discard       ESC  keep fitting"
+              color: root.muted
+              font.family: root.uiFont
+              font.pixelSize: Style.font.caption
+              font.letterSpacing: 2
+            }
+          }
+        }
+      }
+
       Item {
         id: content
         anchors.fill: parent
@@ -1059,22 +1191,34 @@ Item {
             width: statusLabel.implicitWidth + Style.space(28)
             height: Style.space(26)
             chamfer: Style.space(8)
-            fill: root.paneBg
-            stroke: root.dirty ? root.warn : root.line
+            fill: root.dirty && pillMouse.containsMouse ? root.paneBgFocused : root.paneBg
+            stroke: root.dirty || root.lastDeployFailed ? root.warn : root.line
             edge: "left"
-            edgeColor: root.dirty ? root.warn : root.good
+            edgeColor: root.dirty || root.lastDeployFailed ? root.warn : root.good
             edgeWidth: Style.space(3)
 
             Text {
               id: statusLabel
               anchors.centerIn: parent
               anchors.horizontalCenterOffset: Style.space(2)
-              text: (root.statusText || (root.dirty ? "UNAPPLIED CHANGES" : "SYNCED")).toUpperCase()
-              color: root.dirty ? root.warn : root.fg
+              text: (root.statusText
+                || (root.dirty ? "D  DEPLOY LOADOUT"
+                  : root.lastDeployFailed ? "LAST DEPLOY FAILED · " + String(root.lastDeploy.names || "")
+                  : "SYNCED")).toUpperCase()
+              color: root.dirty || root.lastDeployFailed ? root.warn : root.fg
               font.family: root.uiFont
               font.pixelSize: Style.font.caption
               font.bold: true
               font.letterSpacing: 2
+            }
+
+            // The pill is also the button.
+            MouseArea {
+              id: pillMouse
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: root.dirty ? Qt.PointingHandCursor : Qt.ArrowCursor
+              onClicked: root.deploy()
             }
           }
         }
@@ -1254,13 +1398,14 @@ Item {
           // Game-style key prompts: keycap + action.
           readonly property var hintModel: {
             var sel = root.onLoadouts ? root.selectedItem("loadouts") : null
+            var tail = root.dirty
+              ? [["D", "deploy"], ["S", "save loadout"], ["ESC", "discard"]]
+              : [["S", "save"], ["ESC", "close"]]
             if (sel && sel.isNew) return [["ENTER", "save fitting"], ["ESC", root.dirty ? "discard" : "close"]]
-            if (root.currentSlot.multi)
-              return root.dirty
-                ? [["SPACE", "toggle"], ["⇧←→", "move"], ["ENTER", "equip"], ["S", "save loadout"], ["ESC", "discard"]]
-                : [["←→", "cursor"], ["SPACE", "toggle"], ["⇧←→", "move"], ["ENTER", "equip"], ["ESC", "close"]]
-            if (root.dirty) return [["ENTER", "equip"], ["S", "save loadout"], ["ESC", "discard"]]
-            return [["TAB", "category"], ["↑↓", "slot"], ["←→", "browse"], ["ENTER", "equip"], ["S", "save"], ["ESC", "close"]]
+            if (root.onLoadouts) return [["←→", "browse"], ["ENTER", "fit loadout"]].concat(tail)
+            if (root.currentSlot.multi) return [["SPACE", "toggle"], ["⇧←→", "move"], ["ENTER", "fit"]].concat(tail)
+            if (root.previewing) return [["←→", "browse"], ["ENTER", "fit"]].concat(tail)
+            return [["TAB", "category"], ["↑↓", "slot"], ["←→", "browse"], ["ENTER", "fit"]].concat(tail)
           }
 
           Row {

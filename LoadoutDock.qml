@@ -129,11 +129,11 @@ Item {
           }
           Text {
             width: parent.width
-            text: card.isEquipped ? "EQUIPPED" : (card.modelData.meta || "")
-            color: card.isEquipped ? root.good : root.muted
+            text: card.isStaged ? "FITTED" : card.isEquipped ? "EQUIPPED" : (card.modelData.meta || "")
+            color: card.isStaged ? root.warn : card.isEquipped ? root.good : root.muted
             font.family: root.uiFont
             font.pixelSize: Style.font.caption
-            font.letterSpacing: card.isEquipped ? 1.5 : 0
+            font.letterSpacing: card.isStaged || card.isEquipped ? 1.5 : 0
             elide: Text.ElideRight
           }
         }

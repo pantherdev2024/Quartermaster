@@ -14,6 +14,8 @@ TechFrame {
   readonly property var slot: host ? host.currentSlot : ({})
   readonly property var item: host ? host.selectedItem(slot.id) : null
   readonly property bool staged: host && host.staged[slot.id] && host.staged[slot.id] !== "__new" ? true : false
+  readonly property bool previewed: host && host.preview[slot.id] !== undefined && host.preview[slot.id] !== "__new"
+    && host.preview[slot.id] !== (host.staged[slot.id] || host.equippedId(slot.id))
   readonly property color fg: host ? host.fg : Color.foreground
   readonly property color muted: host ? host.muted : Color.muted
   readonly property color accent: host ? host.accent : Color.accent
@@ -55,7 +57,7 @@ TechFrame {
   fill: host ? host.paneBg : "transparent"
   stroke: host ? host.line : Color.muted
   edge: "left"
-  edgeColor: staged ? warn : (item && item.equipped ? good : (host ? host.line : Color.muted))
+  edgeColor: previewed ? accent : staged ? warn : (item && item.equipped ? good : (host ? host.line : Color.muted))
   edgeWidth: Style.space(3)
 
   implicitHeight: body.implicitHeight + Style.space(28)
@@ -84,8 +86,8 @@ TechFrame {
 
       Text {
         anchors.right: parent.right
-        text: root.staged ? "STAGED" : (root.item && root.item.equipped ? "EQUIPPED" : "")
-        color: root.staged ? root.warn : root.good
+        text: root.previewed ? "PREVIEW" : root.staged ? "FITTED" : (root.item && root.item.equipped ? "EQUIPPED" : "")
+        color: root.previewed ? root.accent : root.staged ? root.warn : root.good
         font.family: root.uiFont
         font.pixelSize: Style.font.caption
         font.bold: true
