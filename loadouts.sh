@@ -20,8 +20,14 @@ slug() {
 
 case "${1:-}" in
   list)
+    # Parsed one file at a time on purpose. This directory is user-visible and
+    # meant to be synced, so a conflict copy or a half-written file will turn
+    # up in it eventually; catting the lot into one jq made the first bad byte
+    # take every saved loadout down with it. The select() below can only skip
+    # a file that parsed, so the parsing has to be per file to reach it.
     find "$dir" -maxdepth 1 -name '*.json' -print0 2>/dev/null | sort -z |
-      xargs -0 -r cat | jq -s 'map(select(.id and .name and .slots)) | sort_by(.savedAt) | reverse'
+      while IFS= read -r -d '' file; do jq -c . "$file" 2>/dev/null || true; done |
+      jq -s 'map(select(.id and .name and .slots)) | sort_by(.savedAt) | reverse'
     ;;
   save)
     name="${2:?name required}"
