@@ -78,8 +78,18 @@ order, with dividers between the left, centre and right sections, then a
 bench of the widgets that are off. Its value is the whole layout as one
 string (`left:a,b|center:c|right:d`), so previewing, fitting, saving and "is
 it live" work exactly as for every other slot, and a saved loadout records
-the entire bar arrangement. SPACE and SHIFT+arrows edit the preview; ENTER
-fits the arrangement.
+the entire bar arrangement.
+
+`ENTER` on the slot opens the **workbench** in place of the slot list: three
+bins, LEFT, CENTER and RIGHT, holding the widgets in bar order, and a BENCH
+of everything that is off. Drag a tile into a bin, between two tiles, or back
+to the bench; or with the keyboard, arrows move across tiles, `1` `2` `3`
+send the tile under the cursor to a bin, `BACKSPACE` benches it, `SHIFT+← →`
+nudge it along, `SPACE` toggles. All of that edits the preview and the mini
+desktop's bar follows. `ENTER` fits the arrangement and closes the
+workbench, `ESC` drops the preview. The bins are data, so another slot could
+open a workbench of its own. On the slot row itself, `SPACE` and `SHIFT+← →`
+still work as shortcuts.
 
 Deploying diffs the live layout against the fitted one and runs, in order:
 `omarchy plugin disable` for every widget leaving, `omarchy plugin enable
@@ -164,6 +174,7 @@ manifest.json      overlay plugin declaration
 Loadout.qml        overlay entry: categories, slots, staging, loadouts, apply queue, layout
 CharacterView.qml  the character: viewport, callouts, leader lines, nameplate
 LoadoutDock.qml    the row of saved-loadout cards across the top
+BarWorkbench.qml   the workbench: tiles sorted into labelled bins and a bench
 MiniDesktop.qml    the miniature mock desktop
 SlotPanel.qml      one equipment slot + its inventory row
 ItemData.qml       description panel for whatever the cursor is on

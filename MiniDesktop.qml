@@ -31,16 +31,11 @@ Item {
     return n > 0 ? l : { left: ["omarchy.workspaces"], center: ["omarchy.clock"], right: ["omarchy.tray"] }
   }
 
+  // Glyph per widget id, handed in by the host so tiles and bar agree.
+  property var glyphs: ({})
   function glyphFor(id) {
-    var glyphs = {
-      "omarchy.menu": "󰍜", "omarchy.audio": "󰕾", "omarchy.network": "󰖩",
-      "omarchy.bluetooth": "󰂯", "omarchy.power": "󰁹", "omarchy.monitor": "󰍹",
-      "omarchy.keyboard-layout": "󰌌", "omarchy.weather": "󰖐", "omarchy.system-update": "󰚰",
-      "omarchy.agents": "󰚩", "omarchy.indicators": "󰔡", "omarchy.media": "󰎈",
-      "omarchy.microphone": "󰍬", "omarchy.active-window": "󰖯", "omarchy.dropbox": "󰇣",
-      "omarchy.tailscale": "󰖂", "37signals.hey": "󰇮", "omaplug": "󰐱", "crmne.hyprmoncfg": "󰍺"
-    }
-    return glyphs[id] || "▪"
+    var g = root.glyphs ? root.glyphs[id] : ""
+    return g || "▪"
   }
 
   // Palette accessor with fallback — user themes don't all define every key.

@@ -110,6 +110,7 @@ Item {
       barPosition: root.host ? root.host.previewBarPosition : "top"
       barTransparent: root.host ? root.host.previewBarTransparent : false
       barLayout: root.host ? root.host.previewBarLayout : ({})
+      glyphs: root.host ? root.host.widgetGlyphs : ({})
       fontScale: root.host ? root.host.previewFontScale : 1
     }
   }

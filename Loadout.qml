@@ -146,6 +146,83 @@ Item {
   readonly property string effectiveLayoutString: root.preview["barMods"] || root.staged["barMods"] || root.liveLayoutString
   readonly property var previewBarLayout: root.decodeLayout(root.effectiveLayoutString)
 
+  // Widget glyphs, shared by the mock bar and the workbench tiles.
+  readonly property var widgetGlyphs: ({
+    "omarchy.menu": "󰍜", "omarchy.audio": "󰕾", "omarchy.network": "󰖩",
+    "omarchy.bluetooth": "󰂯", "omarchy.power": "󰁹", "omarchy.monitor": "󰍹",
+    "omarchy.keyboard-layout": "󰌌", "omarchy.weather": "󰖐", "omarchy.system-update": "󰚰",
+    "omarchy.agents": "󰚩", "omarchy.indicators": "󰔡", "omarchy.media": "󰎈",
+    "omarchy.microphone": "󰍬", "omarchy.active-window": "󰖯", "omarchy.dropbox": "󰇣",
+    "omarchy.tailscale": "󰖂", "37signals.hey": "󰇮", "omaplug": "󰐱", "crmne.hyprmoncfg": "󰍺",
+    "omarchy.workspaces": "󰕰", "omarchy.clock": "󰥔", "omarchy.tray": "󰇙"
+  })
+
+  // ---- Workbench ----------------------------------------------------------
+  // ENTER on BAR MODS opens the workbench in place of the slot list; inside
+  // it, ENTER fits the arrangement and ESC drops the preview. These helpers
+  // move one widget by id and re-preview the layout.
+  property bool workbenchOpen: false
+  function openWorkbench() {
+    if (!root.currentSlot.multi) return
+    root.workbenchOpen = true
+  }
+  function closeWorkbench(fit) {
+    if (fit) root.fitPreview(); else root.clearPreview()
+    root.workbenchOpen = false
+  }
+  function widgetById(id) {
+    var widgets = (root.inventory && root.inventory.barWidgets) || []
+    for (var i = 0; i < widgets.length; i++) if (widgets[i].id === id) return widgets[i]
+    return null
+  }
+  function removeFromLayout(l, id) {
+    var at = root.findInLayout(l, id)
+    if (at) l[at.section].splice(at.index, 1)
+  }
+  // Put a widget at `index` of `section`; -1 appends.
+  function placeMod(id, section, index) {
+    var l = root.previewBarLayout
+    if (!l[section]) return
+    root.removeFromLayout(l, id)
+    var arr = l[section]
+    var i = index < 0 ? arr.length : Math.max(0, Math.min(arr.length, index))
+    arr.splice(i, 0, id)
+    root.stageLayout(l, id)
+  }
+  function benchMod(id) {
+    var l = root.previewBarLayout
+    if (!root.findInLayout(l, id)) return
+    root.removeFromLayout(l, id)
+    root.stageLayout(l, id)
+  }
+  function toggleModId(id) {
+    if (root.findInLayout(root.previewBarLayout, id)) { root.benchMod(id); return }
+    var w = root.widgetById(id)
+    root.placeMod(id, (w && w.defaultSection) || "center", -1)
+  }
+  // One place along the bar, crossing into the next section at either end.
+  function nudgeMod(id, delta) {
+    var l = root.previewBarLayout
+    var at = root.findInLayout(l, id)
+    if (!at) return
+    var arr = l[at.section]
+    var si = root.sections.indexOf(at.section)
+    var ni = at.index + delta
+    if (ni < 0) {
+      if (si === 0) return
+      arr.splice(at.index, 1)
+      l[root.sections[si - 1]].push(id)
+    } else if (ni >= arr.length) {
+      if (si === root.sections.length - 1) return
+      arr.splice(at.index, 1)
+      l[root.sections[si + 1]].unshift(id)
+    } else {
+      arr.splice(at.index, 1)
+      arr.splice(ni, 0, id)
+    }
+    root.stageLayout(l, id)
+  }
+
   // Widgets that sit somewhere else in the fitting than live: a different
   // section, or both neighbours changed among the widgets common to both.
   function movedIds(live, want) {
@@ -219,41 +296,14 @@ Item {
     if (n === 0) return
     root.modsCursor = (Math.max(0, Math.min(n - 1, root.modsCursor)) + delta + n) % n
   }
-  // SPACE: off sends the widget to the bench, on puts it at the end of its
-  // default section.
+  // SPACE and SHIFT+arrows on the slot row act on the widget under the cursor.
   function toggleMod() {
     var w = root.modUnderCursor()
-    if (!w) return
-    var l = root.previewBarLayout
-    var at = root.findInLayout(l, w.id)
-    if (at) l[at.section].splice(at.index, 1)
-    else l[w.defaultSection || "center"].push(w.id)
-    root.stageLayout(l, w.id)
+    if (w) root.toggleModId(w.id)
   }
-  // SHIFT+arrows: one place along the bar, crossing into the next section
-  // at either end.
   function moveMod(delta) {
     var w = root.modUnderCursor()
-    if (!w) return
-    var l = root.previewBarLayout
-    var at = root.findInLayout(l, w.id)
-    if (!at) return
-    var arr = l[at.section]
-    var si = root.sections.indexOf(at.section)
-    var ni = at.index + delta
-    if (ni < 0) {
-      if (si === 0) return
-      arr.splice(at.index, 1)
-      l[root.sections[si - 1]].push(w.id)
-    } else if (ni >= arr.length) {
-      if (si === root.sections.length - 1) return
-      arr.splice(at.index, 1)
-      l[root.sections[si + 1]].unshift(w.id)
-    } else {
-      arr.splice(at.index, 1)
-      arr.splice(ni, 0, w.id)
-    }
-    root.stageLayout(l, w.id)
+    if (w) root.nudgeMod(w.id, delta)
   }
 
   // "17 ON  +1  −2  ↔1": what the callout and item data say about the fitting.
@@ -326,6 +376,7 @@ Item {
   property string pinnedCategory: "outfit"
   onSlotIndexChanged: {
     if (currentSlot.cat !== "*") pinnedCategory = currentSlot.cat
+    root.workbenchOpen = false
     root.clearPreview()
   }
   readonly property string currentCategory: currentSlot.cat === "*" ? pinnedCategory : currentSlot.cat
@@ -724,6 +775,7 @@ Item {
     root.previewSlot = ""
     root.hoverOwnsPreview = false
     root.confirmAction = ""
+    root.workbenchOpen = false
     root.slotIndex = 0
     root.modsCursor = 0
     root.statusText = ""
@@ -934,6 +986,14 @@ Item {
           event.accepted = true
           return
         }
+        if (root.workbenchOpen) {
+          if (k === Qt.Key_Escape) root.closeWorkbench(false)
+          else if (k === Qt.Key_Return || k === Qt.Key_Enter) root.closeWorkbench(true)
+          else if (k === Qt.Key_D) { root.closeWorkbench(true); root.deploy() }
+          else if (!workbench.handleKey(k, event.modifiers)) return
+          event.accepted = true
+          return
+        }
         if (k === Qt.Key_Escape) {
           root.requestClose()
         } else if (k === Qt.Key_Up || k === Qt.Key_K) {
@@ -955,7 +1015,8 @@ Item {
         } else if (k >= Qt.Key_1 && k < Qt.Key_1 + root.categories.length) {
           root.selectCategory(root.categories[k - Qt.Key_1].id)
         } else if (k === Qt.Key_Return || k === Qt.Key_Enter) {
-          root.fitPreview()
+          if (root.currentSlot.multi) root.openWorkbench()
+          else root.fitPreview()
         } else if (k === Qt.Key_D) {
           root.deploy()
         } else if (k === Qt.Key_S) {
@@ -1361,8 +1422,18 @@ Item {
             }
 
             // Slots scroll if a small screen can't fit the whole category.
+            BarWorkbench {
+              id: workbench
+              visible: root.workbenchOpen
+              anchors { left: parent.left; right: parent.right; top: tabs.bottom; bottom: itemData.visible ? itemData.top : parent.bottom }
+              anchors.topMargin: Style.space(22)
+              anchors.bottomMargin: itemData.visible ? Style.space(24) : 0
+              host: root
+            }
+
             Flickable {
               id: slotScroll
+              visible: !root.workbenchOpen
               anchors { left: parent.left; right: parent.right; top: tabs.bottom; bottom: itemData.visible ? itemData.top : parent.bottom }
               anchors.topMargin: Style.space(22)
               anchors.bottomMargin: itemData.visible ? Style.space(24) : 0
@@ -1436,9 +1507,13 @@ Item {
             var tail = root.dirty
               ? [["D", "deploy"], ["S", "save loadout"], ["ESC", "discard"]]
               : [["S", "save"], ["ESC", "close"]]
+            if (root.workbenchOpen)
+              return root.compact
+                ? [["↑↓←→", "tile"], ["1 2 3", "to bin"], ["⌫", "bench"], ["⇧←→", "nudge"], ["ENTER", "fit"], ["ESC", "cancel"]]
+                : [["↑↓←→", "tile"], ["1 2 3", "to bin"], ["⌫", "bench"], ["⇧←→", "nudge"], ["ENTER", "fit"], ["D", "fit + deploy"], ["ESC", "cancel"]]
             if (sel && sel.isNew) return [["ENTER", "save fitting"], ["ESC", root.dirty ? "discard" : "close"]]
             if (root.onLoadouts) return [["←→", "browse"], ["ENTER", "fit loadout"]].concat(tail)
-            if (root.currentSlot.multi) return [["SPACE", "toggle"], ["⇧←→", "move"], ["ENTER", "fit"]].concat(tail)
+            if (root.currentSlot.multi) return [["ENTER", "workbench"], ["SPACE", "toggle"], ["⇧←→", "move"]].concat(tail)
             if (root.previewing) return [["←→", "browse"], ["ENTER", "fit"]].concat(tail)
             return [["TAB", "category"], ["↑↓", "slot"], ["←→", "browse"], ["ENTER", "fit"]].concat(tail)
           }
@@ -1446,7 +1521,7 @@ Item {
           Row {
             id: hints
             anchors { horizontalCenter: character.horizontalCenter; bottom: parent.bottom }
-            spacing: Style.space(22)
+            spacing: root.compact ? Style.space(12) : Style.space(22)
 
             Repeater {
               model: body.hintModel
