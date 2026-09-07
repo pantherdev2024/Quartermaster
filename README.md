@@ -47,7 +47,7 @@ the top of the left column. The active pill spells out its name.
 | | Text size | 9–20 px | `omarchy-display-text-size` |
 | **Shell** | Bar position | top / bottom / left / right | `omarchy-bar position` |
 | | Bar surface | solid / transparent | `omarchy-bar transparent` |
-| | Bar mods | every `bar-widget` plugin in the catalogue | `omarchy plugin enable` / `disable`, `omarchy bar move` |
+| | Bar mods | every usable `bar-widget` plugin in the catalogue | `omarchy plugin enable` / `disable`, `omarchy bar move` |
 | **Cyberware** | Terminal | installed alacritty / foot / ghostty / kitty | `omarchy-default-terminal` |
 | | Editor | installed editors `omarchy default editor` knows | `omarchy-default-editor` |
 | | Browser | installed browsers `omarchy default browser` knows | `omarchy-default-browser` |
@@ -126,6 +126,15 @@ Deploying diffs the live layout against the fitted one and runs, in order:
 `omarchy bar move --section --index` for anything else out of place, walked
 left to right so each index is final when issued. All three are live calls
 into the running shell: the bar re-renders in place and nothing restarts.
+
+A widget can front a service that is not on the machine, and enabling it would
+succeed and leave a tile with nothing to say. A bar widget is a plugin and its
+dependencies are generally opaque, but where Omarchy ships an
+`omarchy-installed-service-<name>` check the answer is knowable, so a widget
+that fails its own check is left out of the catalogue — Dropbox and Tailscale
+today. The exception is a widget the bar is already carrying: leaving that out
+would stop the fitting describing, or undoing, what is really there, so it
+stays listed however its check answers.
 
 Two things it does not do. A widget's layout entry can carry settings (the
 clock's format strings, say); disabling drops the entry, settings and all,

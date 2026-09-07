@@ -166,11 +166,31 @@ emit_bar_layout() {
   }' "$shell_json" 2>/dev/null || echo '{"left":[],"center":[],"right":[]}'
 }
 
+# Widgets whose service is not there to report on. A bar widget is a plugin
+# and its dependencies are generally opaque, but for the few where Omarchy
+# ships an omarchy-installed-service-<name> check, the answer is knowable: a
+# Dropbox tile on a machine with no Dropbox is a tile that enables cleanly and
+# then has nothing to say. Emitted as a JSON array of ids. The check is given
+# a short timeout because it can reach for a daemon, and this runs on every
+# open of the screen.
+unavailable_widgets() {
+  local ids=() id name
+  while read -r id; do
+    [[ $id == omarchy.* ]] || continue
+    name=${id#omarchy.}
+    command -v "omarchy-installed-service-$name" >/dev/null 2>&1 || continue
+    timeout 2 "omarchy-installed-service-$name" >/dev/null 2>&1 || ids+=("$id")
+  done < <(jq -r '.[]? | select(.kinds | index("bar-widget")) | .id' <<<"$1" 2>/dev/null)
+  printf '%s\n' "${ids[@]:-}" | jq -Rsc 'split("\n") | map(select(length > 0))'
+}
+
 emit_bar_widgets() {
-  local catalog shell
+  local catalog shell unavailable
   catalog="$(omarchy-plugin-catalog 2>/dev/null)" || catalog='[]'
   shell="$(cat "$shell_json" 2>/dev/null)" || shell='{}'
-  jq -n --argjson catalog "$catalog" --argjson shell "$shell" '
+  unavailable="$(unavailable_widgets "$catalog")" || unavailable='[]'
+  jq -n --argjson catalog "$catalog" --argjson shell "$shell" \
+        --argjson unavailable "$unavailable" '
     { "omarchy.menu": "MENU", "omarchy.workspaces": "WS", "omarchy.clock": "CLK",
       "omarchy.tray": "TRAY", "omarchy.audio": "VOL", "omarchy.network": "NET",
       "omarchy.bluetooth": "BT", "omarchy.power": "PWR", "omarchy.monitor": "DISP",
@@ -186,7 +206,13 @@ emit_bar_widgets() {
             section: $s, index: .key,
             settings: ((.value | type) == "object" and (((.value | keys) - ["id"]) | length) > 0) } ] as $placed
     | $catalog
+    | ($placed | map(.id)) as $placedIds
     | map(select((.kinds | index("bar-widget")) and .id != "omarchy.spacer"))
+    # A widget with no service behind it is not offered -- unless the bar is
+    # already carrying it, where leaving it out would stop the fitting from
+    # describing, or undoing, what is actually there.
+    | map(select(.id as $id
+        | (($unavailable | index($id)) | not) or ($placedIds | index($id))))
     | map(. as $w | ($placed | map(select(.id == $w.id)) | first) as $p
         | { id: $w.id, name: $w.name,
             short: ($tags[$w.id] // ($w.name | ascii_upcase | .[0:4])),
