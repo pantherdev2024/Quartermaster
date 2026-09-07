@@ -44,23 +44,51 @@ Item {
     return g || "▪"
   }
 
-  // Placed by explicit geometry rather than anchors switched on `horizontal`:
-  // an anchor bound to undefined does not reliably release the edge it already
-  // held, so a rail that has been horizontal keeps those anchors when it turns
-  // vertical and the groups land in the wrong place. Along the bar the groups
-  // sit at its start, middle and end whichever way it runs.
+  // How much run the three groups want, and how much there is. A bar turned on
+  // its side has a fraction of the length it had lying down -- a screen is
+  // wider than it is tall, and a vertical clock and a stacked pip column are
+  // taller again than their lying-down selves -- so a bar that fits along the
+  // top can overrun its own ends on a side and draw the groups over each
+  // other. Scale the tokens down until the three fit.
+  //
+  // The fit is applied with `scale`, which leaves width and height alone: a
+  // group's size is what it wants, not what it got, so measuring it here
+  // cannot feed back into the measurement.
+  readonly property real runHave: (horizontal ? width : height) - 2 * margin
+  readonly property real runNeed: horizontal
+    ? startGroup.width + midGroup.width + endGroup.width + 2 * margin
+    : startGroup.height + midGroup.height + endGroup.height + 2 * margin
+  readonly property real fit:
+    (runNeed > 0 && runNeed > runHave) ? Math.max(0.4, runHave / runNeed) : 1
+
+  // Along the bar the groups sit at its start, middle and end whichever way it
+  // runs. Placed by explicit geometry rather than anchors switched on
+  // `horizontal`: an anchor bound to undefined does not reliably release the
+  // edge it already held, so a rail that has been horizontal keeps those
+  // anchors when it turns vertical and the groups land in the wrong place.
+  // Each group shrinks about the end it is pinned to, so the start stays at
+  // the start and the end at the end.
   BarGroup {
+    id: startGroup
     ids: root.layout.left || []
+    scale: root.fit
+    transformOrigin: root.horizontal ? Item.Left : Item.Top
     x: root.horizontal ? root.margin : (root.width - width) / 2
     y: root.horizontal ? (root.height - height) / 2 : root.margin
   }
   BarGroup {
+    id: midGroup
     ids: root.layout.center || []
+    scale: root.fit
+    transformOrigin: Item.Center
     x: (root.width - width) / 2
     y: (root.height - height) / 2
   }
   BarGroup {
+    id: endGroup
     ids: root.layout.right || []
+    scale: root.fit
+    transformOrigin: root.horizontal ? Item.Right : Item.Bottom
     x: root.horizontal ? root.width - width - root.margin : (root.width - width) / 2
     y: root.horizontal ? (root.height - height) / 2 : root.height - height - root.margin
   }
