@@ -329,4 +329,13 @@ deploy.sh          runs a fitting's commands detached from the shell and reports
 agent-set.sh       records the default agent without launching it
 preview.png        the marketplace card: the screen on a 1920x1080 monitor
 LICENSE            MIT
+tests/run.sh       every test below, in order
+tests/*-test.sh    manifest, qmllint, and the four scripts
 ```
+
+`tests/run.sh` needs nothing installed and changes nothing: each test builds a
+home and an Omarchy of its own under `mktemp -d`, and the two scripts that run
+commands are pointed at stubs that record what they were called with. The
+deploy test refuses outright to run a plan naming an absolute path outside its
+stub directory, because a plan is executed as written and one naming a real
+command would deploy it against the machine running the test.
