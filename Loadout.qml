@@ -12,9 +12,10 @@ import qs.Ui
 //
 // Equipment is grouped into categories, picked from a row of glyph pills
 // across the top of the left column. Below the pills, the active category's
-// slots stack down the left; the right column shows a miniature mock desktop
-// painted in whatever is currently staged, plus a detail card for the item
-// under the cursor. The bottom strip is the character sheet: real metrics.
+// slots stack down the left, with a detail card for the item under the
+// cursor at the foot of the column; the right column shows a miniature mock
+// desktop painted in whatever is currently staged. Across the bottom runs a
+// row of key prompts for whatever the cursor can do from where it stands.
 //
 // Three steps, on purpose. Browsing PREVIEWS: the character repaints and
 // nothing else moves. ENTER FITS the preview into the slot: the fitting is
