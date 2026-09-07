@@ -44,31 +44,25 @@ Item {
     return g || "▪"
   }
 
+  // Placed by explicit geometry rather than anchors switched on `horizontal`:
+  // an anchor bound to undefined does not reliably release the edge it already
+  // held, so a rail that has been horizontal keeps those anchors when it turns
+  // vertical and the groups land in the wrong place. Along the bar the groups
+  // sit at its start, middle and end whichever way it runs.
   BarGroup {
     ids: root.layout.left || []
-    anchors {
-      left: root.horizontal ? parent.left : undefined
-      leftMargin: root.margin
-      top: root.horizontal ? undefined : parent.top
-      topMargin: root.margin
-      verticalCenter: root.horizontal ? parent.verticalCenter : undefined
-      horizontalCenter: root.horizontal ? undefined : parent.horizontalCenter
-    }
+    x: root.horizontal ? root.margin : (root.width - width) / 2
+    y: root.horizontal ? (root.height - height) / 2 : root.margin
   }
   BarGroup {
     ids: root.layout.center || []
-    anchors.centerIn: parent
+    x: (root.width - width) / 2
+    y: (root.height - height) / 2
   }
   BarGroup {
     ids: root.layout.right || []
-    anchors {
-      right: root.horizontal ? parent.right : undefined
-      rightMargin: root.margin
-      bottom: root.horizontal ? undefined : parent.bottom
-      bottomMargin: root.margin
-      verticalCenter: root.horizontal ? parent.verticalCenter : undefined
-      horizontalCenter: root.horizontal ? undefined : parent.horizontalCenter
-    }
+    x: root.horizontal ? root.width - width - root.margin : (root.width - width) / 2
+    y: root.horizontal ? (root.height - height) / 2 : root.height - height - root.margin
   }
 
   component BarGroup: Grid {

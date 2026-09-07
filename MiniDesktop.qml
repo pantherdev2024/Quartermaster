@@ -94,16 +94,17 @@ Item {
   // ---- Bar -----------------------------------------------------------
   // Anchored to whichever edge is staged. A transparent bar drops its fill
   // and lets the wallpaper through, exactly as `omarchy bar transparent` does.
+  // Placed by explicit geometry, not by anchors switched on the position. An
+  // anchor bound to undefined does not reliably give up the edge it already
+  // held, so a bar that has been along the top keeps its left and right
+  // anchors when it moves to a side, spans the full width instead of a thin
+  // strip, and takes the rail's tokens out to the middle of the mock with it.
   Rectangle {
     id: bar
-    anchors {
-      top: root.barPosition === "bottom" ? undefined : parent.top
-      bottom: root.barPosition === "top" ? undefined : parent.bottom
-      left: root.barPosition === "right" ? undefined : parent.left
-      right: root.barPosition === "left" ? undefined : parent.right
-    }
-    width: root.barHorizontal ? parent.width : root.barThickness
-    height: root.barHorizontal ? root.barThickness : parent.height
+    x: root.barPosition === "right" ? root.width - width : 0
+    y: root.barPosition === "bottom" ? root.height - height : 0
+    width: root.barHorizontal ? root.width : root.barThickness
+    height: root.barHorizontal ? root.barThickness : root.height
     color: root.barTransparent
       ? "transparent"
       : Qt.rgba(root.darkBg.r, root.darkBg.g, root.darkBg.b, 0.92)
