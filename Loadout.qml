@@ -45,7 +45,10 @@ Item {
     }
     return m
   }
-  readonly property int itemDataHeight: Style.space(132)
+  // The item data panel is a caption to whatever the cursor is on, so it is
+  // sized to the tallest thing it says and no more. Fixed, because the slots
+  // above it must not shift as the cursor moves.
+  readonly property int itemDataHeight: Style.space(102)
   readonly property int cellSize: {
     var full = Style.space(64)
     var column = leftColumn.height
@@ -53,7 +56,14 @@ Item {
     var n = root.maxSlotsPerCategory
     var fixed = Style.space(36 + 22 + 24) + root.itemDataHeight + Style.space(42) * n + Style.space(16) * (n - 1)
     var fit = Math.floor((column - fixed) / n)
-    return Math.max(Style.space(40), Math.min(full, fit))
+    // Cells are square and six of them set the column's width, so cap by
+    // what the body can spare for that column as well as by its height:
+    // freeing height here must not quietly take width from the character.
+    var byWidth = body.leftCeiling > 0
+      ? Math.floor((body.leftCeiling - Style.space(12) - Style.space(7)
+          - (root.maxVisibleCells - 1) * Style.space(8)) / root.maxVisibleCells)
+      : full
+    return Math.max(Style.space(40), Math.min(full, fit, byWidth))
   }
 
   // An inventory row shows at most this many cells at once; the rest are
@@ -65,9 +75,9 @@ Item {
     + root.maxVisibleCells * root.cellSize
     + (root.maxVisibleCells - 1) * Style.space(8)
 
-  // Compact tier (laptop panels): the character's callouts drop into a grid
-  // under the viewport instead of flanking it. Measured against the spacing
-  // scale so a roomier theme falls back to it sooner.
+  // Compact tier (laptop panels): the screen's own chrome tightens — slot
+  // spacing and the hint row close up. The character decides separately
+  // whether it can flank, from its own pane rather than the whole screen.
   readonly property bool compact: panel.width < Style.space(1500)
 
   // Resolved from the QML file's own location so a rename or clone still works.
@@ -1334,11 +1344,18 @@ Item {
           }
 
           readonly property real gutter: Style.space(40)
+          // The most this column may take. The character has to keep enough
+          // width to flank its callouts, and with room to spare rather than
+          // to the pixel, so a theme at a different spacing scale does not
+          // tip it into the stacked fallback.
+          readonly property real leftCeiling: width <= 0 ? 0
+            : Math.min(width * 0.40,
+                       width - gutter - character.minFlankWidth - Style.space(60))
           // Sized from the inventory row rather than from a share of the
-          // screen: six cells wide, with a floor that still holds the
-          // category tabs, and never more than it used to take.
-          readonly property real leftWidth: Math.min(width * 0.40,
-            Math.max(Style.space(320), root.slotRowWidth))
+          // screen: six cells wide, floored at what the category tabs need
+          // and ceilinged at what the character can spare.
+          readonly property real leftWidth: Math.max(Style.space(320),
+            Math.min(root.slotRowWidth, leftCeiling))
 
           // -- Left column: category tabs, then the slot list -----------
           Item {

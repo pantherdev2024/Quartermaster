@@ -50,8 +50,10 @@ Item {
   // gutter and a card at its floor. Deciding from that rather than from a
   // screen width means a roomier spacing scale, or a left column that grows,
   // falls back to the stack on its own instead of overlapping.
-  readonly property bool flanked: width * (1 - root.viewportShare) >= 2 * (root.gutter + root.minCardWidth)
-    && height >= Style.space(268)
+  // The width at which flanking stops being possible. Panes negotiate
+  // against this so nothing has to know the constants behind it.
+  readonly property real minFlankWidth: 2 * (root.gutter + root.minCardWidth) / (1 - root.viewportShare)
+  readonly property bool flanked: width >= root.minFlankWidth && height >= Style.space(268)
   // No room to flank: the callouts form a grid under the viewport, each
   // tethered to the card above it (or to the nameplate).
   readonly property bool stacked: !root.flanked

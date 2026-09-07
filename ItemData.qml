@@ -64,14 +64,14 @@ TechFrame {
   edgeColor: previewed ? accent : staged ? warn : (item && item.equipped ? good : (host ? host.line : Color.muted))
   edgeWidth: Style.space(3)
 
-  implicitHeight: body.implicitHeight + Style.space(28)
+  implicitHeight: body.implicitHeight + Style.space(20)
   clip: true
 
   Column {
     id: body
-    anchors { left: parent.left; right: parent.right; top: parent.top; margins: Style.space(14) }
-    anchors.leftMargin: Style.space(22)
-    spacing: Style.space(6)
+    anchors { left: parent.left; right: parent.right; top: parent.top; margins: Style.space(10) }
+    anchors.leftMargin: Style.space(16)
+    spacing: Style.space(4)
 
     Item {
       width: parent.width
@@ -109,7 +109,7 @@ TechFrame {
         : root.item ? root.item.name : "Nothing here"
       color: root.fg
       font.family: root.kind === "font" && root.item ? root.item.id : root.uiFont
-      font.pixelSize: Style.font.heading
+      font.pixelSize: Style.font.title
       font.bold: true
       elide: Text.ElideRight
     }
@@ -117,12 +117,12 @@ TechFrame {
     // Kind-specific line: swatches, specimen, or the loadout's recorded slots.
     Row {
       visible: root.kind === "theme" && root.palette.length > 0
-      spacing: Style.space(4)
+      spacing: Style.space(3)
       Repeater {
         model: root.palette
         Rectangle {
           required property var modelData
-          width: Style.space(26); height: Style.space(12)
+          width: Style.space(20); height: Style.space(10)
           color: modelData
           border.width: 1
           border.color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.18)
@@ -161,7 +161,7 @@ TechFrame {
       font.family: root.uiFont
       font.pixelSize: Style.font.bodySmall
       wrapMode: Text.Wrap
-      maximumLineCount: 2
+      maximumLineCount: 1
       elide: Text.ElideRight
     }
 
@@ -203,7 +203,7 @@ TechFrame {
       font.family: root.uiFont
       font.pixelSize: Style.font.caption
       wrapMode: Text.Wrap
-      maximumLineCount: 2
+      maximumLineCount: 1
       elide: Text.ElideRight
     }
 
