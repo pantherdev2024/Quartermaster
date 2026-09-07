@@ -1,0 +1,43 @@
+#!/bin/bash
+# Saved loadouts: one JSON file per loadout under the XDG data directory,
+# so they survive plugin updates and can be synced like any other user data.
+#
+#   loadouts.sh list                 -> JSON array, newest first
+#   loadouts.sh save <name> <slots>  -> writes the file, prints its id
+#   loadouts.sh delete <id>
+#
+# <slots> is a JSON object of slot id -> item id, exactly what the screen
+# stages, so equipping a loadout is staging it and pressing ENTER.
+
+set -uo pipefail
+
+dir="${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/loadouts"
+mkdir -p "$dir"
+
+slug() {
+  echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]\+/-/g; s/^-\+//; s/-\+$//'
+}
+
+case "${1:-}" in
+  list)
+    find "$dir" -maxdepth 1 -name '*.json' -print0 2>/dev/null | sort -z |
+      xargs -0 -r cat | jq -s 'map(select(.id and .name and .slots)) | sort_by(.savedAt) | reverse'
+    ;;
+  save)
+    name="${2:?name required}"
+    slots="${3:?slots json required}"
+    id="$(slug "$name")"
+    [[ -n $id ]] || id="loadout-$(date +%s)"
+    jq -n --arg id "$id" --arg name "$name" --argjson slots "$slots" --arg savedAt "$(date -Is)" \
+      '{id:$id, name:$name, slots:$slots, savedAt:$savedAt}' > "$dir/$id.json" || exit 1
+    echo "$id"
+    ;;
+  delete)
+    id="${2:?id required}"
+    rm -f "$dir/$id.json"
+    ;;
+  *)
+    echo "usage: loadouts.sh list | save <name> <slots-json> | delete <id>" >&2
+    exit 2
+    ;;
+esac

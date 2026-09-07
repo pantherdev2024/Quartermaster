@@ -104,7 +104,12 @@ Item {
     Text {
       anchors.right: parent.right
       anchors.verticalCenter: parent.verticalCenter
-      text: root.host && root.host.dirty ? "STAGED CONFIGURATION" : "CURRENT CONFIGURATION"
+      text: {
+        if (!root.host) return ""
+        var name = root.host.activeLoadoutName
+        var state = root.host.dirty ? "STAGED" : "EQUIPPED"
+        return name ? "LOADOUT  " + name.toUpperCase() + "  ·  " + state : (root.host.dirty ? "STAGED CONFIGURATION" : "CURRENT CONFIGURATION")
+      }
       color: root.host && root.host.dirty ? root.warn : root.muted
       font.family: root.uiFont
       font.pixelSize: Style.font.caption

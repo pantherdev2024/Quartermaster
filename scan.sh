@@ -174,8 +174,11 @@ emit_fonts() {
      map({id:., name:., equipped:(. == $current)})'
 }
 
+here="$(dirname "$(readlink -f "$0")")"
+
 jq -n \
   --argjson themes "$(emit_themes)" \
+  --argjson loadouts "$("$here/loadouts.sh" list)" \
   --argjson fonts "$(emit_fonts)" \
   --argjson terminals "$(emit_terminals)" \
   --argjson editors "$(emit_editors)" \
@@ -185,7 +188,7 @@ jq -n \
   --argjson barTransparency "$(emit_bar_transparency)" \
   --argjson textSizes "$(emit_text_sizes)" \
   --arg currentBackground "$(readlink -f ~/.local/state/omarchy/current/background 2>/dev/null)" \
-  '{themes:$themes, fonts:$fonts, terminals:$terminals, editors:$editors,
+  '{themes:$themes, loadouts:$loadouts, fonts:$fonts, terminals:$terminals, editors:$editors,
     browsers:$browsers, agents:$agents, barPositions:$barPositions,
     barTransparency:$barTransparency, textSizes:$textSizes,
     currentBackground:$currentBackground}'

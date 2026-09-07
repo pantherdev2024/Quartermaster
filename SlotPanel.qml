@@ -14,6 +14,8 @@ Item {
   property var host: null
 
   readonly property var items: host ? host.itemsFor(slotDef.id) : []
+  // The dock's NEW cell is an action, not stock.
+  readonly property int stockCount: items.filter(function(i) { return !i.isNew }).length
   readonly property int selected: host ? host.selectedIndexFor(slotDef.id) : 0
   readonly property bool focused: host && host.currentSlot && host.currentSlot.id === slotDef.id
   readonly property bool staged: host && host.staged[slotDef.id] ? true : false
@@ -79,8 +81,8 @@ Item {
         id: count
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        text: root.items.length === 0 ? "NONE"
-          : (root.staged ? "STAGED · " : "") + String(root.items.length).padStart(2, "0")
+        text: root.stockCount === 0 ? "NONE"
+          : (root.staged ? "STAGED · " : "") + String(root.stockCount).padStart(2, "0")
         color: root.staged ? root.warn : root.muted
         font.family: root.uiFont
         font.pixelSize: Style.font.caption
@@ -119,7 +121,11 @@ Item {
           required property int index
           required property var modelData
 
-          width: root.cellSize
+          // Dock cards are wide: thumbnail plus a name and a line of meta.
+          readonly property bool wide: root.slotDef.wide === true
+          readonly property bool isNew: cell.modelData.isNew === true
+
+          width: cell.wide ? Style.space(200) : root.cellSize
           height: list.height
 
           readonly property bool isSelected: cell.index === root.selected
@@ -134,6 +140,7 @@ Item {
               : (root.host ? root.host.paneBgFocused : "transparent")
             stroke: cell.isSelected ? root.accent : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.18)
             strokeWidth: 1
+            dashed: cell.isNew
             brackets: cell.isSelected
             bracketColor: root.accent
             bracketLength: Style.space(9)
@@ -152,7 +159,8 @@ Item {
           }
 
           Image {
-            anchors { fill: parent; margins: Style.space(5) }
+            anchors { top: parent.top; bottom: parent.bottom; left: parent.left; margins: Style.space(5) }
+            width: cell.wide ? height : parent.width - Style.space(10)
             source: cell.thumbnail
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
@@ -167,9 +175,59 @@ Item {
           readonly property string glyph: cell.modelData.icon || ""
           readonly property string tag: cell.modelData.short || ""
 
+          // Wide card text: name and meta beside the thumbnail.
+          Column {
+            visible: cell.wide && !cell.isNew
+            anchors {
+              left: parent.left; leftMargin: (cell.thumbnail.length > 0 ? parent.height : Style.space(5)) + Style.space(6)
+              right: parent.right; rightMargin: Style.space(10)
+              verticalCenter: parent.verticalCenter
+            }
+            spacing: Style.space(3)
+            Text {
+              width: parent.width
+              text: cell.modelData.name || ""
+              color: cell.isSelected ? root.accent : root.fg
+              font.family: root.uiFont
+              font.pixelSize: Style.font.body
+              font.bold: true
+              elide: Text.ElideRight
+            }
+            Text {
+              width: parent.width
+              text: cell.modelData.meta || ""
+              color: root.muted
+              font.family: root.uiFont
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
+            }
+          }
+
+          Row {
+            visible: cell.isNew
+            anchors.centerIn: parent
+            spacing: Style.space(8)
+            Text {
+              text: "󰐕"
+              color: cell.isSelected ? root.accent : root.muted
+              font.family: root.uiFont
+              font.pixelSize: Style.font.iconLarge
+              anchors.verticalCenter: parent.verticalCenter
+            }
+            Text {
+              text: "NEW LOADOUT"
+              color: cell.isSelected ? root.accent : root.muted
+              font.family: root.uiFont
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              font.letterSpacing: 2
+              anchors.verticalCenter: parent.verticalCenter
+            }
+          }
+
           Text {
             anchors.centerIn: parent
-            visible: cell.thumbnail.length === 0
+            visible: cell.thumbnail.length === 0 && !cell.wide
             text: cell.isFont ? "Aa"
               : cell.glyph ? cell.glyph
               : cell.tag ? cell.tag
