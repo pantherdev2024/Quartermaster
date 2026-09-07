@@ -1257,7 +1257,9 @@ Item {
             }
 
             Text {
-              text: "EQUIP SYSTEM // " + root.categories[root.currentCategoryIndex].label
+              text: "EQUIP SYSTEM // " + (root.workbenchOpen
+                ? "BAR MODS"
+                : root.categories[root.currentCategoryIndex].label)
               color: root.muted
               font.family: root.uiFont
               font.pixelSize: Style.font.caption
@@ -1266,8 +1268,10 @@ Item {
             }
           }
 
-          // The saved loadouts, across the top centre.
+          // The saved loadouts, across the top centre. The workbench takes
+          // the whole body and its own row is unreachable there, so it goes.
           Item {
+            visible: !root.workbenchOpen
             anchors {
               left: titleRow.right; leftMargin: Style.space(40)
               right: statusPill.left; rightMargin: Style.space(40)
@@ -1360,6 +1364,7 @@ Item {
           // -- Left column: category tabs, then the slot list -----------
           Item {
             id: leftColumn
+            visible: !root.workbenchOpen
             width: body.leftWidth
             anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
 
@@ -1448,15 +1453,6 @@ Item {
             }
 
             // Slots scroll if a small screen can't fit the whole category.
-            BarWorkbench {
-              id: workbench
-              visible: root.workbenchOpen
-              anchors { left: parent.left; right: parent.right; top: tabs.bottom; bottom: itemData.visible ? itemData.top : parent.bottom }
-              anchors.topMargin: Style.space(22)
-              anchors.bottomMargin: itemData.visible ? Style.space(24) : 0
-              host: root
-            }
-
             Flickable {
               id: slotScroll
               visible: !root.workbenchOpen
@@ -1517,9 +1513,23 @@ Item {
             }
           }
 
+          // -- The workbench: a takeover, not a panel ---------------------
+          // BAR MODS edits the whole bar, so it gets the whole body: the slot
+          // column and the character stand down while it is open.
+          BarWorkbench {
+            id: workbench
+            visible: root.workbenchOpen
+            anchors {
+              left: parent.left; right: parent.right
+              top: parent.top; bottom: hints.top; bottomMargin: Style.space(12)
+            }
+            host: root
+          }
+
           // -- Right column: the character and its fittings --------------
           CharacterView {
             id: character
+            visible: !root.workbenchOpen
             anchors {
               left: leftColumn.right; leftMargin: body.gutter
               right: parent.right; top: parent.top; bottom: hints.top; bottomMargin: Style.space(12)
