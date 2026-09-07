@@ -68,6 +68,26 @@ Item {
     onYChanged: root.repaintLeaders()
     onWidthChanged: root.repaintLeaders()
 
+    // A slow scan sweep over the viewport: the character is a projection.
+    Rectangle {
+      id: sweep
+      anchors { left: parent.left; right: parent.right; margins: Style.space(6) }
+      height: Style.space(28)
+      z: 2
+      visible: root.visible
+      gradient: Gradient {
+        GradientStop { position: 0.0; color: "transparent" }
+        GradientStop { position: 0.85; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.10) }
+        GradientStop { position: 1.0; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.22) }
+      }
+      SequentialAnimation on y {
+        loops: Animation.Infinite
+        running: root.visible && root.host && root.host.opened
+        NumberAnimation { from: -sweep.height; to: viewport.height; duration: 5200; easing.type: Easing.InOutSine }
+        PauseAnimation { duration: 2600 }
+      }
+    }
+
     MiniDesktop {
       id: preview
       anchors { fill: parent; margins: Style.space(6) }

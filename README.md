@@ -1,15 +1,17 @@
 # Loadout
 
 An RPG equip screen for Omarchy. Slot in themes, backgrounds, fonts and
-defaults, preview them on a miniature desktop, then apply for real — with
-system stats reading out along the bottom like a character sheet.
+defaults, watch a miniature desktop re-fit itself as you browse, then equip
+for real. Save a fitting as a loadout and swap between them in one move.
 
 ## Usage
 
 - `SUPER + SHIFT + L`, or the Omarchy menu → **Style → Loadout**
 - `TAB` / `SHIFT+TAB` (or `1` `2` `3`) switch equipment category
-- `↑ ↓` move between slots, `← →` browse that slot's inventory
-- `ENTER` applies everything staged, `ESC` discards and closes
+- `↑ ↓` move between slots (the saved-loadouts dock is always the last stop),
+  `← →` browse that slot's inventory
+- `ENTER` equips everything staged, `ESC` discards and closes
+- `S` saves the current fitting as a loadout, `X` deletes the selected one
 
 The screen opens on Hyprland's focused monitor. A summon payload can name an
 output instead, which is handy for scripting and screenshots:
@@ -50,31 +52,34 @@ in a terminal, which is not what "apply" should do from an equip screen.
 Adding a slot means adding one entry to `slotDefs` in `Loadout.qml` (with its
 category, glyph and apply-command prefix) and a matching branch in
 `itemsFor()`. The staged item id is appended to the prefix as the final
-argument.
+argument. New slots appear in the character view's callouts automatically.
+
+## Loadouts
+
+The dock at the foot of the slot list holds saved loadouts. A loadout records
+the fitting as it stands, staged choices included, as a map of slot id to item
+id in `~/.local/share/omarchy/loadouts/<id>.json`. Moving onto a saved card
+stages every slot it recorded that differs from what is live, so equipping one
+is: pick it, press `ENTER`. The nameplate under the character names the loadout
+it currently represents; a hand-picked change clears that until you save again.
 
 ## How it works
 
-`scan.sh` emits the whole inventory as one JSON document (themes with their
-parsed `colors.toml` palettes, preview images and wallpapers); `stats.sh`
-emits one metrics snapshot, keeping the previous sample in a state file so
-CPU, network and disk rates are deltas rather than requiring a blocking sleep.
-The QML polls stats only while the screen is open, since the plugin shares the
-long-running Omarchy shell process, and keeps two-minute rolling histories for
-the charts.
+`scan.sh` emits the whole inventory as one JSON document: themes with their
+parsed `colors.toml` palettes, preview images and wallpapers, the installed
+tools each default slot can take, the chassis options, and the saved loadouts
+from `loadouts.sh list`.
 
-The character sheet along the bottom runs left to right: host, uptime and
-load; CPU / memory / temperature (and GPU when a card reports utilisation)
-tiles; a two-minute CPU and memory history; per-core heat; network throughput
-with upload above the axis and download below; root and swap capacity with
-disk I/O. Its look follows [omarchy-system-monitor][sysmon] by Harshith
-Chennupati, laid out horizontally, and `Sparkline.qml` is adapted from it
-under MIT. Everything is drawn in the accent family so it survives any theme.
+The centre of the character view is a *mock* desktop, not a screen capture. A
+capture can only show what is already applied, and this overlay covers the
+screen anyway. Mocking it is what makes previewing an unapplied fitting
+possible: it moves its bar, drops the bar fill, scales its type and repaints
+in the staged palette. Around it, one callout per slot names what is worn or
+staged, tethered by a leader line that turns accent under the cursor and the
+warning colour when staged.
 
-[sysmon]: https://github.com/Harshith292002/omarchy-system-monitor
-
-The centre preview is a *mock* desktop, not a screen capture. A capture can
-only show what is already applied, and this overlay covers the screen anyway —
-mocking it is what makes previewing an unapplied theme possible.
+Every frame is a `TechFrame`: a chamfered outline with an optional heavy edge
+and corner brackets, drawn on a Canvas so it recolours with the theme.
 
 ## Notes
 
@@ -94,13 +99,14 @@ well as dark ones.
 ## Files
 
 ```
-manifest.json    overlay plugin declaration
-Loadout.qml      overlay entry: categories, slots, staging, apply queue, layout
-MiniDesktop.qml  the miniature mock desktop
-SlotPanel.qml    one equipment slot + its inventory row
-StatsStrip.qml   the character sheet: metrics band along the bottom
-Sparkline.qml    rolling time-series canvas (single or mirrored)
-scan.sh          inventory as JSON
-stats.sh         system metrics as JSON
-agent-set.sh     records the default agent without launching it
+manifest.json      overlay plugin declaration
+Loadout.qml        overlay entry: categories, slots, staging, loadouts, apply queue, layout
+CharacterView.qml  the character: viewport, callouts, leader lines, nameplate
+MiniDesktop.qml    the miniature mock desktop
+SlotPanel.qml      one equipment slot + its inventory row (also the loadouts dock)
+ItemData.qml       description panel for whatever the cursor is on
+TechFrame.qml      chamfered frame with heavy edge and corner brackets
+scan.sh            inventory as JSON
+loadouts.sh        list / save / delete saved loadouts
+agent-set.sh       records the default agent without launching it
 ```

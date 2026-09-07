@@ -749,6 +749,22 @@ Item {
             }
           }
 
+          Text {
+            anchors.centerIn: parent
+            text: {
+              var staged = 0
+              for (var k in root.staged) if (k !== "loadouts" && root.staged[k]) staged++
+              var saved = ((root.inventory && root.inventory.loadouts) || []).length
+              return "SLOTS " + String(root.slotDefs.length - 1).padStart(2, "0")
+                + "   ·   STAGED " + String(staged).padStart(2, "0")
+                + "   ·   LOADOUTS " + String(saved).padStart(2, "0")
+            }
+            color: root.muted
+            font.family: root.uiFont
+            font.pixelSize: Style.font.caption
+            font.letterSpacing: 2.5
+          }
+
           TechFrame {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
@@ -876,12 +892,20 @@ Item {
               color: root.line
             }
 
+            // Item data: what the cursor is on, spelled out — the reference's
+            // description panel. Fills the room between the slots and the dock.
+            ItemData {
+              id: itemData
+              anchors { left: parent.left; right: parent.right; bottom: dock.top; bottomMargin: Style.space(44) }
+              host: root
+            }
+
             // Slots scroll if a small screen can't fit the whole category.
             Flickable {
               id: slotScroll
-              anchors { left: parent.left; right: parent.right; top: tabs.bottom; bottom: dock.top }
+              anchors { left: parent.left; right: parent.right; top: tabs.bottom; bottom: itemData.top }
               anchors.topMargin: Style.space(22)
-              anchors.bottomMargin: Style.space(46)
+              anchors.bottomMargin: Style.space(24)
               contentWidth: width
               contentHeight: slotList.implicitHeight
               clip: true
@@ -890,7 +914,18 @@ Item {
               Column {
                 id: slotList
                 width: slotScroll.width
-                spacing: Style.space(24)
+                // Spread the category's slots down the column when there is
+                // room, the way the reference spaces slots around the body,
+                // but never so far that they stop reading as one list.
+                readonly property int count: root.visibleSlots.length
+                readonly property real slotHeights: {
+                  var h = 0
+                  for (var i = 0; i < children.length; i++) if (children[i].slotDef) h += children[i].implicitHeight
+                  return h
+                }
+                spacing: count > 1
+                  ? Math.max(Style.space(24), Math.min(Style.space(64), (slotScroll.height - slotHeights) / count))
+                  : 0
 
                 Repeater {
                   model: root.visibleSlots
@@ -915,18 +950,55 @@ Item {
             host: root
           }
 
-          Text {
+          // Game-style key prompts: keycap + action.
+          readonly property var hintModel: {
+            var sel = root.onLoadouts ? root.selectedItem("loadouts") : null
+            if (sel && sel.isNew) return [["ENTER", "save fitting"], ["ESC", root.dirty ? "discard" : "close"]]
+            if (root.dirty) return [["ENTER", "equip"], ["S", "save loadout"], ["ESC", "discard"]]
+            return [["TAB", "category"], ["↑↓", "slot"], ["←→", "browse"], ["ENTER", "equip"], ["S", "save"], ["ESC", "close"]]
+          }
+
+          Row {
             id: hints
             anchors { horizontalCenter: character.horizontalCenter; bottom: parent.bottom }
-            text: root.onLoadouts && root.selectedItem("loadouts") && root.selectedItem("loadouts").isNew
-              ? "ENTER  save current fitting as a loadout       ESC  " + (root.dirty ? "discard" : "close")
-              : root.dirty
-                ? "ENTER  apply for real       S  save as loadout       ESC  discard"
-                : "TAB category     ↑↓ slot     ←→ browse     ENTER apply     S save     ESC close"
-            color: root.muted
-            font.family: root.uiFont
-            font.pixelSize: Style.font.bodySmall
-            font.letterSpacing: 2
+            spacing: Style.space(22)
+
+            Repeater {
+              model: body.hintModel
+              delegate: Row {
+                id: hint
+                required property var modelData
+                spacing: Style.space(8)
+
+                TechFrame {
+                  width: keyText.implicitWidth + Style.space(16)
+                  height: Style.space(22)
+                  chamfer: Style.space(5)
+                  cuts: ["tl", "br"]
+                  fill: root.paneBgFocused
+                  stroke: root.line
+                  anchors.verticalCenter: parent.verticalCenter
+                  Text {
+                    id: keyText
+                    anchors.centerIn: parent
+                    text: hint.modelData[0]
+                    color: root.fg
+                    font.family: root.uiFont
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                    font.letterSpacing: 1
+                  }
+                }
+                Text {
+                  text: hint.modelData[1].toUpperCase()
+                  color: root.muted
+                  font.family: root.uiFont
+                  font.pixelSize: Style.font.caption
+                  font.letterSpacing: 1.5
+                  anchors.verticalCenter: parent.verticalCenter
+                }
+              }
+            }
           }
         }
       }

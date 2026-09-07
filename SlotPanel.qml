@@ -18,7 +18,8 @@ Item {
   readonly property int stockCount: items.filter(function(i) { return !i.isNew }).length
   readonly property int selected: host ? host.selectedIndexFor(slotDef.id) : 0
   readonly property bool focused: host && host.currentSlot && host.currentSlot.id === slotDef.id
-  readonly property bool staged: host && host.staged[slotDef.id] ? true : false
+  // Sitting on the dock's NEW cell is cursor state, not a staged change.
+  readonly property bool staged: host && host.staged[slotDef.id] && host.staged[slotDef.id] !== "__new" ? true : false
 
   readonly property color fg: host ? host.fg : Color.foreground
   readonly property color muted: host ? host.muted : Color.muted
