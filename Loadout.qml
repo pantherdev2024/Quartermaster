@@ -205,9 +205,7 @@ Item {
   // they're browsing. Null falls back to Quickshell's default placement.
   property var targetScreen: null
 
-  function resolveTargetScreen() {
-    var monitor = Hyprland.focusedMonitor
-    var name = monitor ? String(monitor.name || "") : ""
+  function screenNamed(name) {
     if (!name) return null
     var screens = Quickshell.screens
     for (var i = 0; i < screens.length; i++) {
@@ -216,8 +214,24 @@ Item {
     return null
   }
 
+  // A summon payload may name the output ({"screen": "eDP-1"}); otherwise
+  // the screen follows Hyprland's focused monitor.
+  function resolveTargetScreen(payloadJson) {
+    var wanted = ""
+    try {
+      var payload = JSON.parse(payloadJson || "{}")
+      if (payload && typeof payload.screen === "string") wanted = payload.screen
+    } catch (e) {
+      // Not JSON, or not ours: fall through to the focused monitor.
+    }
+    var explicit = root.screenNamed(wanted)
+    if (explicit) return explicit
+    var monitor = Hyprland.focusedMonitor
+    return root.screenNamed(monitor ? String(monitor.name || "") : "")
+  }
+
   function open(payloadJson) {
-    root.targetScreen = root.resolveTargetScreen()
+    root.targetScreen = root.resolveTargetScreen(payloadJson)
     root.opened = true
     root.staged = ({})
     root.slotIndex = 0

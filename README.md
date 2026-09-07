@@ -11,6 +11,13 @@ system stats reading out along the bottom like a character sheet.
 - `↑ ↓` move between slots, `← →` browse that slot's inventory
 - `ENTER` applies everything staged, `ESC` discards and closes
 
+The screen opens on Hyprland's focused monitor. A summon payload can name an
+output instead, which is handy for scripting and screenshots:
+
+```
+omarchy-shell shell toggle io.github.pantherdev2024.loadout '{"screen":"eDP-1"}'
+```
+
 Browsing only *stages* a selection: the mini desktop repaints instantly and
 nothing on the real system changes until you press ENTER.
 

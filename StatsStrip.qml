@@ -219,8 +219,11 @@ BorderSurface {
         width: root.tileWidth; height: parent.height
         title: "CPU"
         value: root.percent(root.cpu.percent)
-        detail: (root.cpu.cores ? root.cpu.cores + " threads" : "—")
-          + (!root.showTemp && root.cpu.temp >= 0 ? " · " + Math.round(root.cpu.temp) + "°C" : "")
+        // Compact folds the temperature in here, so the thread count shortens
+        // to make room: "16 thr · 39°C" instead of eliding.
+        detail: !root.showTemp && root.cpu.temp >= 0
+          ? (root.cpu.cores || "—") + " thr · " + Math.round(root.cpu.temp) + "°C"
+          : (root.cpu.cores ? root.cpu.cores + " threads" : "—")
         meter: root.cpu.percent !== undefined ? root.cpu.percent : -1
         meterColor: root.levelColor(root.cpu.percent, root.warnAt, root.critAt)
         alarming: root.cpu.percent >= root.critAt
