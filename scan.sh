@@ -24,8 +24,11 @@ emit_themes() {
 
   local -a rows=()
   local seen=""
-  # User themes take precedence over stock ones with the same name.
-  for dir in ~/.config/omarchy/themes/*/ /usr/share/omarchy/themes/*/; do
+  # Both halves of the collection: what the user installed, then what Omarchy
+  # shipped. The stock half is wherever Omarchy says it is rather than where it
+  # usually is, because `omarchy dev link` moves it. User themes take precedence
+  # over stock ones with the same name.
+  for dir in ~/.config/omarchy/themes/*/ "${OMARCHY_PATH:-/usr/share/omarchy}"/themes/*/; do
     dir="${dir%/}"
     [[ -d $dir ]] || continue
     # An entry with no palette can't be previewed or applied — skip stubs and
