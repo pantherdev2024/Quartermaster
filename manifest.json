@@ -3,7 +3,7 @@
   "id": "io.github.pantherdev2024.loadout",
   "name": "Loadout",
   "version": "0.1.0",
-  "author": "panthermark3",
+  "author": "pantherdev2024",
   "license": "MIT",
   "description": "An RPG equip screen for Omarchy. Slot in themes, backgrounds, fonts and defaults, preview them on a miniature desktop, then apply for real. System stats read out along the bottom like a character sheet.",
   "kinds": ["overlay"],
