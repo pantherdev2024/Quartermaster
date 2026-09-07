@@ -345,9 +345,15 @@ Item {
               : (cell.modelData.name || "?").substring(0, 2).toUpperCase()
             color: cell.isSelected ? root.accent : root.fg
             font.family: cell.isFont ? cell.modelData.id : root.uiFont
+            // One size for every tag, whatever its length. Sizing off the tag
+            // meant TOP and BTM stood a third taller than LEFT and RGHT in the
+            // same row, and a slot read bigger or smaller than its neighbours
+            // in the next category for no reason the eye could name. The
+            // longest tag any slot carries is five characters, which sits
+            // inside a cell at this size. A font is still its own specimen and
+            // a glyph is an icon rather than a value, so those keep their own.
             font.pixelSize: cell.isFont ? Style.font.iconLarge
               : cell.glyph ? Style.font.display
-              : cell.tag.length > 3 ? Style.font.caption
               : Style.font.subtitle
             font.bold: !cell.isFont && !cell.glyph
           }
