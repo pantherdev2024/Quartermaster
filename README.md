@@ -5,9 +5,61 @@ defaults, watch a miniature desktop re-fit itself as you browse, fit what you
 like, then deploy the whole fitting for real. Save a fitting as a loadout and
 swap between them in one move.
 
+## Install
+
+```sh
+omarchy plugin add https://github.com/pantherdev2024/loadout.git --enable
+```
+
+Adding shows you the code before anything runs, and a plugin lands disabled
+unless you pass `--enable`. Once it is on, the screen answers to the shell:
+
+```sh
+omarchy-shell shell toggle io.github.pantherdev2024.loadout
+```
+
+That command is the whole interface. It is also the only way in a plugin can
+offer on its own, because a manifest cannot claim a key or a menu row, so the
+two comfortable ways in are yours to add. Both are one line.
+
+A keybinding, in `~/.config/hypr/bindings.lua`:
+
+```lua
+o.bind("SUPER + SHIFT + L", "Loadout", "omarchy-shell shell toggle io.github.pantherdev2024.loadout")
+```
+
+A row under **Style** in the Omarchy menu, in
+`~/.config/omarchy/extensions/omarchy-menu.jsonc`:
+
+```jsonc
+"style.loadout": {"icon":"󰆓","label":"Loadout","aliases":["loadout","equip"],"description":"Equip themes, backgrounds and fonts with a live preview","action":"omarchy-shell shell toggle io.github.pantherdev2024.loadout"},
+```
+
+## Remove
+
+```sh
+omarchy plugin remove io.github.pantherdev2024.loadout
+```
+
+That takes the plugin out of `~/.config/omarchy/plugins` and out of
+`shell.json`, and it undoes none of what you deployed. Every change Loadout
+makes it makes by running the ordinary Omarchy command, so a theme, font or
+default it applied stays applied exactly as if you had run that command
+yourself.
+
+Two directories are yours rather than the plugin's, so they are left where
+they are and a reinstall finds your loadouts again:
+
+- `~/.local/share/omarchy/loadouts/` — one JSON file per saved loadout
+- `~/.local/state/omarchy/loadout/` — the deploy log and the last result
+
+Delete those by hand if you want them gone, and take the binding and the menu
+row back out of your own config.
+
 ## Usage
 
-- `SUPER + SHIFT + L`, or the Omarchy menu → **Style → Loadout**
+- Summon it with the command above, or with whichever of the binding and the
+  menu row you set up
 - `TAB` / `SHIFT+TAB` (or `1` `2` `3`) switch equipment category
 - `↑ ↓` move between slots (the saved-loadouts row across the top is always
   the last stop), `← →` browse that slot's inventory
