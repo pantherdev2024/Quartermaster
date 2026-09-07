@@ -19,17 +19,41 @@ result="$state/last-deploy.json"
 count=$(jq 'length' <<<"$plan") || exit 1
 echo "== $(date -Is) deploying $count command(s)" >>"$log"
 
+now_ms() { date +%s%3N; }
+
+# omarchy-theme-set picks a background of its own: it snapshots the current
+# wallpaper, cycles to the next one in the theme's folder, crossfades to it over
+# IPC and forks a cleanup. When the fitting carries a background too, all of
+# that is thrown away one command later, and the crossfade to the wrong
+# wallpaper is the longest stall in the deploy. Tell the theme to leave the
+# background alone and let omarchy-theme-bg-set put the right one up directly.
+skip_theme_background=0
+if jq -e 'any(.[]; (.[0] | split("/") | last) == "omarchy-theme-bg-set")' <<<"$plan" >/dev/null 2>&1; then
+  skip_theme_background=1
+  echo "   (theme keeps its hands off the background: one is fitted)" >>"$log"
+fi
+
 ok=0
 failed=()
+started=$(now_ms)
 for ((i = 0; i < count; i++)); do
   mapfile -t cmd < <(jq -r ".[$i][]" <<<"$plan")
+  prefix=()
+  if ((skip_theme_background)) && [[ ${cmd[0]##*/} == omarchy-theme-set ]]; then
+    prefix=(env OMARCHY_THEME_SKIP_BACKGROUND=1)
+  fi
   echo "-- ${cmd[*]}" >>"$log"
-  if "${cmd[@]}" >>"$log" 2>&1; then
+  at=$(now_ms)
+  if "${prefix[@]}" "${cmd[@]}" >>"$log" 2>&1; then
     ok=$((ok + 1))
+    outcome=ok
   else
     failed+=("${cmd[0]##*/}")
+    outcome=FAILED
   fi
+  echo "   $outcome in $(($(now_ms) - at))ms" >>"$log"
 done
+echo "== $count command(s) in $(($(now_ms) - started))ms total" >>"$log"
 
 jq -n --arg at "$(date -Is)" --argjson ok "$ok" --argjson failed "${#failed[@]}" \
   --arg names "${failed[*]:-}" '{at:$at, ok:$ok, failed:$failed, names:$names}' >"$result"
