@@ -10,6 +10,8 @@ for real. Save a fitting as a loadout and swap between them in one move.
 - `TAB` / `SHIFT+TAB` (or `1` `2` `3`) switch equipment category
 - `↑ ↓` move between slots (the saved-loadouts dock is always the last stop),
   `← →` browse that slot's inventory
+- On BAR MODS, `← →` only move the cursor: `SPACE` toggles the widget under
+  it on or off, `SHIFT + ← →` slides it along the bar
 - `ENTER` equips everything staged, `ESC` discards and closes
 - `S` saves the current fitting as a loadout, `X` deletes the selected one
 
@@ -36,6 +38,7 @@ the top of the left column. The active pill spells out its name.
 | **Chassis** | Bar position | top / bottom / left / right | `omarchy-bar position` |
 | | Bar surface | solid / transparent | `omarchy-bar transparent` |
 | | Text size | 9–20 px | `omarchy-display-text-size` |
+| | Bar mods | every `bar-widget` plugin in the catalogue | `omarchy plugin enable` / `disable`, `omarchy bar move` |
 | **Cyberware** | Terminal | installed alacritty / foot / ghostty / kitty | `omarchy-default-terminal` |
 | | Editor | installed editors `omarchy default editor` knows | `omarchy-default-editor` |
 | | Browser | installed browsers `omarchy default browser` knows | `omarchy-default-browser` |
@@ -43,7 +46,30 @@ the top of the left column. The active pill spells out its name.
 
 Outfit is what the desktop wears, Chassis is the frame it hangs on, and
 Cyberware is the tooling wired into it. Chassis choices preview live: the
-mini desktop moves its bar, drops the bar fill, and scales its type.
+mini desktop moves its bar, drops the bar fill, scales its type, and mirrors
+the bar's widget layout.
+
+### Bar mods
+
+Bar mods is the one multi-select slot. Its cells are the bar's widgets in bar
+order, with dividers between the left, centre and right sections, then a
+bench of the widgets that are off. Its value is the whole layout as one
+string (`left:a,b|center:c|right:d`), so staging, saving and "is it live"
+work exactly as for every other slot, and a saved loadout records the entire
+bar arrangement.
+
+Equipping diffs the live layout against the staged one and runs, in order:
+`omarchy plugin disable` for every widget leaving, `omarchy plugin enable
+--section --index` for every widget joining at its final spot, then
+`omarchy bar move --section --index` for anything else out of place, walked
+left to right so each index is final when issued. All three are live calls
+into the running shell: the bar re-renders in place and nothing restarts.
+
+Two things it does not do. A widget's layout entry can carry settings (the
+clock's format strings, say); disabling drops the entry, settings and all,
+and re-enabling gets defaults. Loadout warns on such a widget's item data
+but does not preserve the settings. And the spacer, which a bar may carry
+several of, is left out of the cells: it stays wherever it is.
 
 The agent slot writes `~/.config/omarchy/defaults/agent` directly rather than
 calling `omarchy-default-agent`, because that command also launches the agent
@@ -114,7 +140,7 @@ MiniDesktop.qml    the miniature mock desktop
 SlotPanel.qml      one equipment slot + its inventory row (also the loadouts dock)
 ItemData.qml       description panel for whatever the cursor is on
 TechFrame.qml      chamfered frame with heavy edge and corner brackets
-scan.sh            inventory as JSON
+scan.sh            inventory as JSON (widgets and bar layout included)
 loadouts.sh        list / save / delete saved loadouts
 agent-set.sh       records the default agent without launching it
 ```

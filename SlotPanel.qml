@@ -30,6 +30,9 @@ Item {
   readonly property string uiFont: host ? host.uiFont : Style.font.menuFamily
 
   readonly property int cellSize: Style.space(64)
+  // A multi-select slot: cells are on/off, the cursor stages nothing.
+  readonly property bool multi: slotDef.multi === true
+  readonly property int onCount: items.filter(function(i) { return i.on === true }).length
 
   implicitHeight: column.implicitHeight
 
@@ -83,7 +86,9 @@ Item {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         text: root.stockCount === 0 ? "NONE"
-          : (root.staged ? "STAGED · " : "") + String(root.stockCount).padStart(2, "0")
+          : (root.staged ? "STAGED · " : "")
+            + (root.multi ? String(root.onCount).padStart(2, "0") + " / " : "")
+            + String(root.stockCount).padStart(2, "0")
         color: root.staged ? root.warn : root.muted
         font.family: root.uiFont
         font.pixelSize: Style.font.caption
@@ -125,15 +130,45 @@ Item {
           // Dock cards are wide: thumbnail plus a name and a line of meta.
           readonly property bool wide: root.slotDef.wide === true
           readonly property bool isNew: cell.modelData.isNew === true
+          // Multi cells: off ones are dim and dashed, and the first cell of
+          // each bar section (and of the bench) carries a divider.
+          readonly property bool off: root.multi && cell.modelData.on !== true
+          readonly property bool changed: root.multi && cell.modelData.changed === true
+          readonly property real lead: root.multi && cell.modelData.sectionStart === true ? Style.space(18) : 0
 
-          width: cell.wide ? Style.space(200) : root.cellSize
+          width: (cell.wide ? Style.space(200) : root.cellSize) + cell.lead
           height: list.height
 
           readonly property bool isSelected: cell.index === root.selected
           readonly property bool isEquipped: cell.modelData.equipped === true
 
+          Item {
+            visible: cell.lead > 0
+            width: cell.lead
+            height: parent.height
+
+            Rectangle {
+              anchors { left: parent.left; leftMargin: Style.space(4); top: parent.top; bottom: parent.bottom }
+              width: 1
+              color: root.line
+            }
+            Text {
+              anchors.centerIn: parent
+              anchors.horizontalCenterOffset: Style.space(2)
+              rotation: -90
+              text: cell.modelData.section === "left" ? "LEFT"
+                : cell.modelData.section === "center" ? "CENTER"
+                : cell.modelData.section === "right" ? "RIGHT" : "BENCH"
+              color: root.muted
+              font.family: root.uiFont
+              font.pixelSize: Style.font.caption - 2
+              font.letterSpacing: 1.5
+            }
+          }
+
           TechFrame {
             anchors.fill: parent
+            anchors.leftMargin: cell.lead
             chamfer: Style.space(6)
             cuts: ["tr", "bl"]
             fill: cell.isSelected
@@ -141,7 +176,7 @@ Item {
               : (root.host ? root.host.paneBgFocused : "transparent")
             stroke: cell.isSelected ? root.accent : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.18)
             strokeWidth: 1
-            dashed: cell.isNew
+            dashed: cell.isNew || cell.off
             brackets: cell.isSelected
             bracketColor: root.accent
             bracketLength: Style.space(9)
@@ -161,6 +196,7 @@ Item {
 
           Image {
             anchors { top: parent.top; bottom: parent.bottom; left: parent.left; margins: Style.space(5) }
+            anchors.leftMargin: Style.space(5) + cell.lead
             width: cell.wide ? height : parent.width - Style.space(10)
             source: cell.thumbnail
             fillMode: Image.PreserveAspectCrop
@@ -228,6 +264,8 @@ Item {
 
           Text {
             anchors.centerIn: parent
+            anchors.horizontalCenterOffset: cell.lead / 2
+            opacity: cell.off ? 0.45 : 1
             visible: cell.thumbnail.length === 0 && !cell.wide
             text: cell.isFont ? "Aa"
               : cell.glyph ? cell.glyph
@@ -246,11 +284,11 @@ Item {
           // shrunk to a coloured foot so it survives at cell size.
           Rectangle {
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-            anchors.leftMargin: Style.space(6)
+            anchors.leftMargin: Style.space(6) + cell.lead
             anchors.rightMargin: Style.space(3)
             height: Style.space(3)
-            color: root.good
-            visible: cell.isEquipped
+            color: cell.changed ? root.warn : root.good
+            visible: root.multi ? (cell.modelData.on === true || cell.changed) : cell.isEquipped
           }
 
           MouseArea {
@@ -260,7 +298,8 @@ Item {
               root.host.slotIndex = root.host.slotDefs.findIndex(function(d) {
                 return d.id === root.slotDef.id
               })
-              root.host.stageCurrent(cell.modelData.id)
+              if (root.multi) root.host.modsCursor = cell.index
+              else root.host.stageCurrent(cell.modelData.id)
             }
           }
         }

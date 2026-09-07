@@ -154,6 +154,52 @@ emit_bar_transparency() {
     emit_rows "$current"
 }
 
+# Bar widgets: the catalogue joined with the live layout. The spacer is left
+# out: it is a widget you can have several of, which on/off cannot describe,
+# so it stays wherever it is. `barLayout` is the raw layout order, spacer and
+# all, because move indices count every entry.
+emit_bar_layout() {
+  jq -c '(.bar.layout // {}) | {
+    left:   ((.left   // []) | map(if type == "object" then .id else . end)),
+    center: ((.center // []) | map(if type == "object" then .id else . end)),
+    right:  ((.right  // []) | map(if type == "object" then .id else . end))
+  }' "$shell_json" 2>/dev/null || echo '{"left":[],"center":[],"right":[]}'
+}
+
+emit_bar_widgets() {
+  local catalog shell
+  catalog="$(omarchy-plugin-catalog 2>/dev/null)" || catalog='[]'
+  shell="$(cat "$shell_json" 2>/dev/null)" || shell='{}'
+  jq -n --argjson catalog "$catalog" --argjson shell "$shell" '
+    { "omarchy.menu": "MENU", "omarchy.workspaces": "WS", "omarchy.clock": "CLK",
+      "omarchy.tray": "TRAY", "omarchy.audio": "VOL", "omarchy.network": "NET",
+      "omarchy.bluetooth": "BT", "omarchy.power": "PWR", "omarchy.monitor": "DISP",
+      "omarchy.agents": "AGNT", "omarchy.indicators": "IND", "omarchy.keyboard-layout": "KBD",
+      "omarchy.weather": "WX", "omarchy.system-update": "UPD", "omarchy.active-window": "WIN",
+      "omarchy.dropbox": "DBX", "omarchy.media": "MED", "omarchy.microphone": "MIC",
+      "omarchy.tailscale": "TS", "37signals.hey": "HEY", "omaplug": "PLUG",
+      "crmne.hyprmoncfg": "MON" } as $tags
+    | ($shell.bar.layout // {}) as $layout
+    | [ ("left", "center", "right") as $s
+        | ($layout[$s] // []) | to_entries[]
+        | { id: (if (.value | type) == "object" then .value.id else .value end),
+            section: $s, index: .key,
+            settings: ((.value | type) == "object" and (((.value | keys) - ["id"]) | length) > 0) } ] as $placed
+    | $catalog
+    | map(select((.kinds | index("bar-widget")) and .id != "omarchy.spacer"))
+    | map(. as $w | ($placed | map(select(.id == $w.id)) | first) as $p
+        | { id: $w.id, name: $w.name,
+            short: ($tags[$w.id] // ($w.name | ascii_upcase | .[0:4])),
+            category: ($w.barWidget.category // ""),
+            description: ($w.barWidget.description // $w.description // ""),
+            defaultSection: (($w.barWidget.defaultSection // "center")
+              | if IN("left", "center", "right") then . else "center" end),
+            section: ($p.section // ""), index: ($p.index // -1),
+            settings: ($p.settings // false) })
+    | sort_by(.name)
+  '
+}
+
 emit_text_sizes() {
   # First line of the status output reads "text size: 12 (default) px".
   local current
@@ -187,8 +233,11 @@ jq -n \
   --argjson barPositions "$(emit_bar_positions)" \
   --argjson barTransparency "$(emit_bar_transparency)" \
   --argjson textSizes "$(emit_text_sizes)" \
+  --argjson barWidgets "$(emit_bar_widgets)" \
+  --argjson barLayout "$(emit_bar_layout)" \
   --arg currentBackground "$(readlink -f ~/.local/state/omarchy/current/background 2>/dev/null)" \
   '{themes:$themes, loadouts:$loadouts, fonts:$fonts, terminals:$terminals, editors:$editors,
     browsers:$browsers, agents:$agents, barPositions:$barPositions,
     barTransparency:$barTransparency, textSizes:$textSizes,
+    barWidgets:$barWidgets, barLayout:$barLayout,
     currentBackground:$currentBackground}'

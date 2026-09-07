@@ -59,6 +59,9 @@ Item {
     { id: "barPosition",    cat: "chassis",   label: "BAR POSITION", icon: "󰍹", apply: ["omarchy-bar", "position"] },
     { id: "barTransparent", cat: "chassis",   label: "BAR SURFACE",  icon: "󰗌", apply: ["omarchy-bar", "transparent"] },
     { id: "textSize",       cat: "chassis",   label: "TEXT SIZE",    icon: "󰉡", apply: ["omarchy-display-text-size"] },
+    // The bar's widget layout: a multi-select slot. `apply` is only a marker;
+    // applyStaged() asks barModsCommands() for the real command list.
+    { id: "barMods",        cat: "chassis",   label: "BAR MODS",     icon: "󰐱", apply: ["omarchy-bar"], multi: true },
     { id: "terminal",       cat: "cyberware", label: "TERMINAL",     icon: "󰆍", apply: ["omarchy-default-terminal"] },
     { id: "editor",         cat: "cyberware", label: "EDITOR",       icon: "󰅩", apply: ["omarchy-default-editor"] },
     { id: "browser",        cat: "cyberware", label: "BROWSER",      icon: "󰖟", apply: ["omarchy-default-browser"] },
@@ -69,6 +72,213 @@ Item {
   ]
   readonly property int loadoutsSlotIndex: slotDefs.length - 1
   readonly property bool onLoadouts: currentSlot.id === "loadouts"
+
+  // ---- Bar mods --------------------------------------------------------
+  // The slot's value is the whole bar in order, "left:a,b|center:c|right:d",
+  // so staging, saved loadouts and "is it live" stay string compares like
+  // every other slot. The cursor is separate: browsing this slot moves the
+  // cursor and stages nothing; SPACE and SHIFT+arrows change the layout.
+  property int modsCursor: 0
+  readonly property var sections: ["left", "center", "right"]
+
+  function decodeLayout(str) {
+    var out = { left: [], center: [], right: [] }
+    var parts = String(str || "").split("|")
+    for (var i = 0; i < parts.length; i++) {
+      var colon = parts[i].indexOf(":")
+      if (colon < 0) continue
+      var sec = parts[i].substring(0, colon)
+      var ids = parts[i].substring(colon + 1)
+      if (out[sec] === undefined) continue
+      out[sec] = ids ? ids.split(",") : []
+    }
+    return out
+  }
+  function encodeLayout(l) {
+    var parts = []
+    for (var i = 0; i < root.sections.length; i++) {
+      var sec = root.sections[i]
+      parts.push(sec + ":" + ((l && l[sec]) || []).join(","))
+    }
+    return parts.join("|")
+  }
+  function findInLayout(l, id) {
+    for (var i = 0; i < root.sections.length; i++) {
+      var idx = (l[root.sections[i]] || []).indexOf(id)
+      if (idx >= 0) return { section: root.sections[i], index: idx }
+    }
+    return null
+  }
+  function flattenLayout(l) {
+    return [].concat(l.left || [], l.center || [], l.right || [])
+  }
+
+  readonly property string liveLayoutString: root.encodeLayout((root.inventory && root.inventory.barLayout) || {})
+  readonly property string effectiveLayoutString: root.staged["barMods"] || root.liveLayoutString
+  readonly property var previewBarLayout: root.decodeLayout(root.effectiveLayoutString)
+
+  // Widgets that sit somewhere else in the fitting than live: a different
+  // section, or both neighbours changed among the widgets common to both.
+  function movedIds(live, want) {
+    var liveIds = root.flattenLayout(live), wantIds = root.flattenLayout(want)
+    var shared = wantIds.filter(function(id) { return liveIds.indexOf(id) >= 0 })
+    var liveSeq = liveIds.filter(function(id) { return shared.indexOf(id) >= 0 })
+    var out = {}
+    for (var i = 0; i < shared.length; i++) {
+      var id = shared[i]
+      var a = root.findInLayout(live, id), b = root.findInLayout(want, id)
+      if (a.section !== b.section) { out[id] = true; continue }
+      var li = liveSeq.indexOf(id)
+      var predSame = (li > 0 ? liveSeq[li - 1] : "") === (i > 0 ? shared[i - 1] : "")
+      var succSame = (li < liveSeq.length - 1 ? liveSeq[li + 1] : "") === (i < shared.length - 1 ? shared[i + 1] : "")
+      if (!predSame && !succSame) out[id] = true
+    }
+    return out
+  }
+
+  // The slot's items: catalogue widgets in the fitting's bar order, then the
+  // bench of widgets that are off. Unknown layout entries (the spacer) are
+  // kept in the layout string but get no cell.
+  function modItems(layoutString) {
+    var widgets = (root.inventory && root.inventory.barWidgets) || []
+    if (widgets.length === 0) return []
+    var byId = {}
+    for (var i = 0; i < widgets.length; i++) byId[widgets[i].id] = widgets[i]
+    var live = root.decodeLayout(root.liveLayoutString)
+    var want = root.decodeLayout(layoutString)
+    var moved = root.movedIds(live, want)
+    var out = [], seen = {}
+    function push(w, section, index, first) {
+      var on = section !== ""
+      var liveOn = root.findInLayout(live, w.id) !== null
+      out.push({
+        id: w.id, name: w.name, short: w.short, category: w.category,
+        description: w.description, defaultSection: w.defaultSection,
+        settings: w.settings === true, section: section, index: index,
+        on: on, equipped: on, changed: on !== liveOn || moved[w.id] === true,
+        sectionStart: first
+      })
+      seen[w.id] = true
+    }
+    for (var s = 0; s < root.sections.length; s++) {
+      var sec = root.sections[s], first = true
+      for (var j = 0; j < want[sec].length; j++) {
+        var w = byId[want[sec][j]]
+        if (!w) continue
+        push(w, sec, j, first)
+        first = false
+      }
+    }
+    var bench = widgets.filter(function(w) { return !seen[w.id] })
+    bench.sort(function(a, b) { return a.name.localeCompare(b.name) })
+    for (var k = 0; k < bench.length; k++) push(bench[k], "", -1, k === 0)
+    return out
+  }
+
+  function modUnderCursor() {
+    var items = root.itemsFor("barMods")
+    if (items.length === 0) return null
+    return items[Math.max(0, Math.min(items.length - 1, root.modsCursor))]
+  }
+  function stageLayout(l, followId) {
+    var str = root.encodeLayout(l)
+    root.stageCurrent(str === root.liveLayoutString ? "" : str)
+    var items = root.itemsFor("barMods")
+    for (var i = 0; i < items.length; i++) if (items[i].id === followId) { root.modsCursor = i; return }
+  }
+  function moveModsCursor(delta) {
+    var n = root.itemsFor("barMods").length
+    if (n === 0) return
+    root.modsCursor = (Math.max(0, Math.min(n - 1, root.modsCursor)) + delta + n) % n
+  }
+  // SPACE: off sends the widget to the bench, on puts it at the end of its
+  // default section.
+  function toggleMod() {
+    var w = root.modUnderCursor()
+    if (!w) return
+    var l = root.previewBarLayout
+    var at = root.findInLayout(l, w.id)
+    if (at) l[at.section].splice(at.index, 1)
+    else l[w.defaultSection || "center"].push(w.id)
+    root.stageLayout(l, w.id)
+  }
+  // SHIFT+arrows: one place along the bar, crossing into the next section
+  // at either end.
+  function moveMod(delta) {
+    var w = root.modUnderCursor()
+    if (!w) return
+    var l = root.previewBarLayout
+    var at = root.findInLayout(l, w.id)
+    if (!at) return
+    var arr = l[at.section]
+    var si = root.sections.indexOf(at.section)
+    var ni = at.index + delta
+    if (ni < 0) {
+      if (si === 0) return
+      arr.splice(at.index, 1)
+      l[root.sections[si - 1]].push(w.id)
+    } else if (ni >= arr.length) {
+      if (si === root.sections.length - 1) return
+      arr.splice(at.index, 1)
+      l[root.sections[si + 1]].unshift(w.id)
+    } else {
+      arr.splice(at.index, 1)
+      arr.splice(ni, 0, w.id)
+    }
+    root.stageLayout(l, w.id)
+  }
+
+  // "17 ON  +1  −2  ↔1": what the callout and item data say about the fitting.
+  readonly property string barModsSummary: {
+    var live = root.decodeLayout(root.liveLayoutString)
+    var want = root.decodeLayout(root.effectiveLayoutString)
+    var liveIds = root.flattenLayout(live), wantIds = root.flattenLayout(want)
+    var on = wantIds.filter(function(id) { return id !== "omarchy.spacer" }).length
+    var added = wantIds.filter(function(id) { return liveIds.indexOf(id) < 0 }).length
+    var removed = liveIds.filter(function(id) { return wantIds.indexOf(id) < 0 }).length
+    var moved = Object.keys(root.movedIds(live, want)).length
+    var text = on + " ON"
+    if (added) text += "  +" + added
+    if (removed) text += "  −" + removed
+    if (moved) text += "  ↔" + moved
+    return text
+  }
+
+  // The command list that turns the live bar into `value`: disables first,
+  // then a left-to-right walk of the wanted layout that enables or moves
+  // whatever is not already in its final place. Indices are as the shell
+  // counts them: insert position after the source entry is removed.
+  function barModsCommands(value) {
+    var live = root.decodeLayout(root.liveLayoutString)
+    var want = root.decodeLayout(value)
+    var wantIds = root.flattenLayout(want)
+    var cmds = [], sim = {}
+    for (var s = 0; s < root.sections.length; s++) {
+      var sec = root.sections[s]
+      sim[sec] = []
+      for (var i = 0; i < live[sec].length; i++) {
+        var id = live[sec][i]
+        if (wantIds.indexOf(id) >= 0) sim[sec].push(id)
+        else cmds.push(["omarchy-plugin-disable", id])
+      }
+    }
+    for (var t = 0; t < root.sections.length; t++) {
+      var target = root.sections[t]
+      for (var j = 0; j < want[target].length; j++) {
+        var wid = want[target][j]
+        var at = root.findInLayout(sim, wid)
+        if (at && at.section === target && at.index === j) continue
+        if (!at) {
+          cmds.push(["omarchy-plugin-enable", wid, "--section", target, "--index", String(j)])
+        } else {
+          cmds.push(["omarchy-bar", "move", wid, "--section", target, "--index", String(j)])
+          sim[at.section].splice(at.index, 1)
+        }
+        sim[target].splice(j, 0, wid)
+      }
+    }
+    return cmds
+  }
 
   // Staged selection per slot id. Empty means "unchanged from what's live".
   property var staged: ({})
@@ -92,6 +302,7 @@ Item {
 
   // The equipped item id for a slot, ignoring anything staged.
   function equippedId(slotId) {
+    if (slotId === "barMods") return root.liveLayoutString
     var items = root.itemsFor(slotId)
     for (var i = 0; i < items.length; i++) if (items[i].equipped) return items[i].id
     return ""
@@ -146,6 +357,7 @@ Item {
     if (slotId === "barPosition") return inv.barPositions || []
     if (slotId === "barTransparent") return inv.barTransparency || []
     if (slotId === "textSize") return inv.textSizes || []
+    if (slotId === "barMods") return root.modItems(root.effectiveLayoutString)
     if (slotId === "background") {
       // Backgrounds belong to whichever theme is staged, so this slot's
       // contents change as the theme cursor moves.
@@ -171,6 +383,7 @@ Item {
   }
 
   function selectedId(slotId, fallback) {
+    if (slotId === "barMods") return root.effectiveLayoutString
     var it = root.selectedItem(slotId)
     return it ? it.id : fallback
   }
@@ -308,6 +521,7 @@ Item {
 
   function selectedIndexFor(slotId) {
     var items = root.itemsFor(slotId)
+    if (slotId === "barMods") return items.length ? Math.max(0, Math.min(items.length - 1, root.modsCursor)) : 0
     var wanted = root.staged[slotId]
     for (var i = 0; i < items.length; i++) {
       if (wanted ? items[i].id === wanted : items[i].equipped) return i
@@ -316,6 +530,7 @@ Item {
   }
 
   function moveWithinSlot(delta) {
+    if (root.currentSlot.multi) { root.moveModsCursor(delta); return }
     var items = root.itemsFor(root.currentSlot.id)
     if (items.length === 0) return
     var i = root.selectedIndexFor(root.currentSlot.id) + delta
@@ -381,6 +596,7 @@ Item {
     root.opened = true
     root.staged = ({})
     root.slotIndex = 0
+    root.modsCursor = 0
     root.statusText = ""
     scanProc.running = true
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -417,7 +633,8 @@ Item {
       var def = root.slotDefs[i]
       var value = root.staged[def.id]
       if (!def.apply || !value) continue
-      cmds.push(def.apply.concat([value]))
+      if (def.multi) cmds = cmds.concat(root.barModsCommands(value))
+      else cmds.push(def.apply.concat([value]))
     }
     if (cmds.length === 0) return
     root.applying = true
@@ -580,9 +797,13 @@ Item {
         } else if (k === Qt.Key_Down || k === Qt.Key_J) {
           root.moveSlot(1)
         } else if (k === Qt.Key_Left || k === Qt.Key_H) {
-          root.moveWithinSlot(-1)
+          if (root.currentSlot.multi && (event.modifiers & Qt.ShiftModifier)) root.moveMod(-1)
+          else root.moveWithinSlot(-1)
         } else if (k === Qt.Key_Right || k === Qt.Key_L) {
-          root.moveWithinSlot(1)
+          if (root.currentSlot.multi && (event.modifiers & Qt.ShiftModifier)) root.moveMod(1)
+          else root.moveWithinSlot(1)
+        } else if (k === Qt.Key_Space && root.currentSlot.multi) {
+          root.toggleMod()
         } else if (k === Qt.Key_Tab || k === Qt.Key_E || k === Qt.Key_BracketRight) {
           root.moveCategory(1)
         } else if (k === Qt.Key_Backtab || k === Qt.Key_Q || k === Qt.Key_BracketLeft) {
@@ -984,6 +1205,10 @@ Item {
           readonly property var hintModel: {
             var sel = root.onLoadouts ? root.selectedItem("loadouts") : null
             if (sel && sel.isNew) return [["ENTER", "save fitting"], ["ESC", root.dirty ? "discard" : "close"]]
+            if (root.currentSlot.multi)
+              return root.dirty
+                ? [["SPACE", "toggle"], ["⇧←→", "move"], ["ENTER", "equip"], ["S", "save loadout"], ["ESC", "discard"]]
+                : [["←→", "cursor"], ["SPACE", "toggle"], ["⇧←→", "move"], ["ENTER", "equip"], ["ESC", "close"]]
             if (root.dirty) return [["ENTER", "equip"], ["S", "save loadout"], ["ESC", "discard"]]
             return [["TAB", "category"], ["↑↓", "slot"], ["←→", "browse"], ["ENTER", "equip"], ["S", "save"], ["ESC", "close"]]
           }

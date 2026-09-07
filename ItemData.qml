@@ -22,6 +22,7 @@ TechFrame {
   readonly property string uiFont: host ? host.uiFont : Style.font.menuFamily
 
   readonly property string kind: slot.id === "theme" ? "theme"
+    : slot.multi ? "mod"
     : slot.id === "font" ? "font"
     : slot.id === "loadouts" ? "loadout"
     : slot.id === "background" ? "background"
@@ -44,6 +45,7 @@ TechFrame {
       return n + " slots recorded  ·  " + String(item.savedAt || "").replace("T", " ").substring(0, 16)
     }
     if (item.path) return item.path
+    if (kind === "mod") return (host ? host.barModsSummary : "") + "  ·  omarchy plugin enable / disable  ·  omarchy bar move"
     if (slot.apply) return slot.apply.map(function(a) { return a.split("/").pop() }).join(" ") + "  " + item.id
     return ""
   }
@@ -114,6 +116,40 @@ TechFrame {
           border.color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.18)
         }
       }
+    }
+
+    // A bar widget: where it sits, what it does, and a warning when its
+    // layout entry carries settings that turning it off would discard.
+    Text {
+      visible: root.kind === "mod" && root.item
+      width: parent.width
+      text: {
+        if (!root.item) return ""
+        var where = root.item.on
+          ? String(root.item.section).toUpperCase() + " " + String(root.item.index + 1).padStart(2, "0")
+          : "BENCH"
+        var parts = [where]
+        if (root.item.category) parts.push(root.item.category.toUpperCase())
+        if (root.item.description) parts.push(root.item.description)
+        return parts.join("  ·  ")
+      }
+      color: root.muted
+      font.family: root.uiFont
+      font.pixelSize: Style.font.bodySmall
+      wrapMode: Text.Wrap
+      maximumLineCount: 2
+      elide: Text.ElideRight
+    }
+
+    Text {
+      visible: root.kind === "mod" && root.item && root.item.settings === true
+      width: parent.width
+      text: "CARRIES SETTINGS  ·  turning it off discards them; back on means defaults"
+      color: root.warn
+      font.family: root.uiFont
+      font.pixelSize: Style.font.caption
+      font.letterSpacing: 1
+      elide: Text.ElideRight
     }
 
     Text {

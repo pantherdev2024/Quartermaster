@@ -20,6 +20,28 @@ Item {
   property string barPosition: "top"
   property bool barTransparent: false
   property real fontScale: 1.0
+  // Which widgets sit where: { left: [ids], center: [ids], right: [ids] }.
+  property var barLayout: ({ left: [], center: [], right: [] })
+
+  // Before the inventory lands the layout is empty; show a plausible bar
+  // rather than a bare strip.
+  readonly property var layoutOrDefault: {
+    var l = root.barLayout || {}
+    var n = (l.left || []).length + (l.center || []).length + (l.right || []).length
+    return n > 0 ? l : { left: ["omarchy.workspaces"], center: ["omarchy.clock"], right: ["omarchy.tray"] }
+  }
+
+  function glyphFor(id) {
+    var glyphs = {
+      "omarchy.menu": "󰍜", "omarchy.audio": "󰕾", "omarchy.network": "󰖩",
+      "omarchy.bluetooth": "󰂯", "omarchy.power": "󰁹", "omarchy.monitor": "󰍹",
+      "omarchy.keyboard-layout": "󰌌", "omarchy.weather": "󰖐", "omarchy.system-update": "󰚰",
+      "omarchy.agents": "󰚩", "omarchy.indicators": "󰔡", "omarchy.media": "󰎈",
+      "omarchy.microphone": "󰍬", "omarchy.active-window": "󰖯", "omarchy.dropbox": "󰇣",
+      "omarchy.tailscale": "󰖂", "37signals.hey": "󰇮", "omaplug": "󰐱", "crmne.hyprmoncfg": "󰍺"
+    }
+    return glyphs[id] || "▪"
+  }
 
   // Palette accessor with fallback — user themes don't all define every key.
   function c(key, fallback) {
@@ -95,9 +117,13 @@ Item {
       ? "transparent"
       : Qt.rgba(root.darkBg.r, root.darkBg.g, root.darkBg.b, 0.92)
 
-    // Workspace pips — first one active in the accent color.
-    Grid {
-      id: pips
+    // The widgets, mirrored from the fitting's bar layout: three groups at
+    // the start, middle and end of the bar, each a run of tokens. Workspaces
+    // draw as the pip row, the clock as the time, the tray as a dot cluster,
+    // and everything else as a glyph, so toggling a widget in BAR MODS shows
+    // up here at once.
+    BarGroup {
+      ids: root.layoutOrDefault.left || []
       anchors {
         left: root.barHorizontal ? parent.left : undefined
         leftMargin: root.u * 2.5
@@ -106,9 +132,58 @@ Item {
         verticalCenter: root.barHorizontal ? parent.verticalCenter : undefined
         horizontalCenter: root.barHorizontal ? undefined : parent.horizontalCenter
       }
+    }
+    BarGroup {
+      ids: root.layoutOrDefault.center || []
+      anchors.centerIn: parent
+    }
+    BarGroup {
+      ids: root.layoutOrDefault.right || []
+      anchors {
+        right: root.barHorizontal ? parent.right : undefined
+        rightMargin: root.u * 2.5
+        bottom: root.barHorizontal ? undefined : parent.bottom
+        bottomMargin: root.u * 2.5
+        verticalCenter: root.barHorizontal ? parent.verticalCenter : undefined
+        horizontalCenter: root.barHorizontal ? undefined : parent.horizontalCenter
+      }
+    }
+  }
+
+  component BarGroup: Grid {
+    id: group
+    property var ids: []
+    columns: root.barHorizontal ? Math.max(1, ids.length) : 1
+    spacing: root.u * 2
+    verticalItemAlignment: Grid.AlignVCenter
+    horizontalItemAlignment: Grid.AlignHCenter
+
+    Repeater {
+      model: group.ids
+      delegate: BarToken {}
+    }
+  }
+
+  component BarToken: Item {
+    id: tok
+    required property string modelData
+    readonly property string kind: modelData === "omarchy.workspaces" ? "pips"
+      : modelData === "omarchy.clock" ? "clock"
+      : modelData === "omarchy.tray" ? "tray"
+      : modelData === "omarchy.spacer" ? "gap"
+      : "glyph"
+
+    width: kind === "pips" ? pips.width : kind === "clock" ? clock.width
+      : kind === "tray" ? tray.width : kind === "gap" ? root.u * 4 : glyph.width
+    height: kind === "pips" ? pips.height : kind === "clock" ? clock.height
+      : kind === "tray" ? tray.height : kind === "gap" ? root.u * 2 : glyph.height
+
+    // Workspace pips — first one active in the accent color.
+    Grid {
+      id: pips
+      visible: tok.kind === "pips"
       columns: root.barHorizontal ? 5 : 1
       spacing: root.u * 1.6
-
       Repeater {
         model: 5
         Rectangle {
@@ -123,7 +198,8 @@ Item {
     }
 
     Text {
-      anchors.centerIn: parent
+      id: clock
+      visible: tok.kind === "clock"
       text: root.barHorizontal
         ? Qt.formatDateTime(new Date(), "ddd d MMM  hh:mm")
         : Qt.formatDateTime(new Date(), "hh\n—\nmm")
@@ -134,17 +210,10 @@ Item {
     }
 
     Grid {
-      anchors {
-        right: root.barHorizontal ? parent.right : undefined
-        rightMargin: root.u * 2.5
-        bottom: root.barHorizontal ? undefined : parent.bottom
-        bottomMargin: root.u * 2.5
-        verticalCenter: root.barHorizontal ? parent.verticalCenter : undefined
-        horizontalCenter: root.barHorizontal ? undefined : parent.horizontalCenter
-      }
+      id: tray
+      visible: tok.kind === "tray"
       columns: root.barHorizontal ? 3 : 1
       spacing: root.u * 1.8
-
       Repeater {
         model: [root.green, root.yellow, root.blue]
         Rectangle {
@@ -155,6 +224,16 @@ Item {
           color: modelData
         }
       }
+    }
+
+    Text {
+      id: glyph
+      visible: tok.kind === "glyph"
+      text: root.glyphFor(tok.modelData)
+      color: root.fg
+      opacity: 0.85
+      font.family: root.fontFamily
+      font.pixelSize: root.t * 3.2
     }
   }
 

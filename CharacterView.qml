@@ -28,8 +28,8 @@ Item {
   readonly property var leftSlots: slotsIn("outfit")
   readonly property var rightSlots: slotsIn("cyberware")
   readonly property var bottomSlots: slotsIn("chassis")
-  // Compact order is category order, so with three columns each category
-  // lands on its own row.
+  // Compact order is category order, so the grid reads top to bottom the
+  // way the tabs read left to right.
   readonly property var gridSlots: leftSlots.concat(bottomSlots).concat(rightSlots)
 
   // Compact: no room to flank the viewport, so the callouts form a grid
@@ -109,6 +109,7 @@ Item {
       terminalName: root.host ? root.host.previewTerminal : ""
       barPosition: root.host ? root.host.previewBarPosition : "top"
       barTransparent: root.host ? root.host.previewBarTransparent : false
+      barLayout: root.host ? root.host.previewBarLayout : ({})
       fontScale: root.host ? root.host.previewFontScale : 1
     }
   }
@@ -310,8 +311,12 @@ Item {
     readonly property var item: root.host ? root.host.selectedItem(def.id) : null
     readonly property bool focused: root.host && root.host.currentSlot && root.host.currentSlot.id === def.id
     readonly property bool staged: root.host && root.host.staged[def.id] ? true : false
-    readonly property string tag: staged ? "STAGED" : (item && item.equipped ? "EQUIPPED" : (item ? "" : "EMPTY"))
-    readonly property color tagColor: staged ? root.warn : (item && item.equipped ? root.good : root.muted)
+    // A multi slot is always worn: its value is the whole layout.
+    readonly property bool multi: def.multi === true
+    readonly property string tag: staged ? "STAGED" : (multi || (item && item.equipped) ? "EQUIPPED" : (item ? "" : "EMPTY"))
+    readonly property color tagColor: staged ? root.warn : (multi || (item && item.equipped) ? root.good : root.muted)
+    // No room for the tag word: compact, or a narrow card in the wide layout.
+    readonly property bool tight: root.compact || width < Style.space(170)
 
     height: root.calloutHeight
 
@@ -377,7 +382,7 @@ Item {
             font.pixelSize: Style.font.caption
             font.bold: true
             font.letterSpacing: 1.2
-            visible: text !== "" && !root.compact
+            visible: text !== "" && !card.tight
           }
 
           // Compact cards have no room for the word, so the state is a
@@ -388,13 +393,13 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             width: Style.space(6); height: Style.space(6)
             color: card.tagColor
-            visible: root.compact && card.tag !== ""
+            visible: card.tight && card.tag !== ""
           }
         }
 
         Text {
           width: parent.width
-          text: card.item ? card.item.name : "—"
+          text: card.multi && root.host ? root.host.barModsSummary : (card.item ? card.item.name : "—")
           color: root.fg
           font.family: root.uiFont
           font.pixelSize: Style.font.subtitle
