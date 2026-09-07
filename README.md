@@ -49,10 +49,21 @@ argument.
 
 `scan.sh` emits the whole inventory as one JSON document (themes with their
 parsed `colors.toml` palettes, preview images and wallpapers); `stats.sh`
-emits one metrics snapshot, keeping the previous sample in a state file so CPU
-and network rates are deltas rather than requiring a blocking sleep. The QML
-polls stats only while the screen is open, since the plugin shares the
-long-running Omarchy shell process.
+emits one metrics snapshot, keeping the previous sample in a state file so
+CPU, network and disk rates are deltas rather than requiring a blocking sleep.
+The QML polls stats only while the screen is open, since the plugin shares the
+long-running Omarchy shell process, and keeps two-minute rolling histories for
+the charts.
+
+The character sheet along the bottom runs left to right: host, uptime and
+load; CPU / memory / temperature (and GPU when a card reports utilisation)
+tiles; a two-minute CPU and memory history; per-core heat; network throughput
+with upload above the axis and download below; root and swap capacity with
+disk I/O. Its look follows [omarchy-system-monitor][sysmon] by Harshith
+Chennupati, laid out horizontally, and `Sparkline.qml` is adapted from it
+under MIT. Everything is drawn in the accent family so it survives any theme.
+
+[sysmon]: https://github.com/Harshith292002/omarchy-system-monitor
 
 The centre preview is a *mock* desktop, not a screen capture. A capture can
 only show what is already applied, and this overlay covers the screen anyway —
@@ -80,8 +91,8 @@ manifest.json    overlay plugin declaration
 Loadout.qml      overlay entry: categories, slots, staging, apply queue, layout
 MiniDesktop.qml  the miniature mock desktop
 SlotPanel.qml    one equipment slot + its inventory row
-Gauge.qml        radial dial (CPU, GPU)
-Meter.qml        horizontal bar (memory, disk, swap)
+StatsStrip.qml   the character sheet: metrics band along the bottom
+Sparkline.qml    rolling time-series canvas (single or mirrored)
 scan.sh          inventory as JSON
 stats.sh         system metrics as JSON
 agent-set.sh     records the default agent without launching it

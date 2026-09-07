@@ -250,11 +250,42 @@ Item {
     }
   }
 
+  // Two-minute rolling histories for the character sheet's charts. Points
+  // are {time, value}; the sparkline positions them by wall clock, so a gap
+  // between opens simply ages out rather than drawing a false flat line.
+  property var cpuHistory: []
+  property var memHistory: []
+  property var rxHistory: []
+  property var txHistory: []
+  readonly property int historyWindowMs: 120000
+
+  function appendHistory(current, timestamp, value) {
+    if (!isFinite(value) || value < 0) return current
+    var cutoff = timestamp - root.historyWindowMs
+    var next = []
+    for (var i = 0; i < current.length; i++) {
+      if (current[i].time >= cutoff) next.push(current[i])
+    }
+    next.push({ time: timestamp, value: value })
+    if (next.length > 130) next = next.slice(next.length - 130)
+    return next
+  }
+
   function loadStats(raw) {
+    var parsed
     try {
-      root.stats = JSON.parse(raw)
+      parsed = JSON.parse(raw)
     } catch (e) {
       // A dropped sample is not worth surfacing; the next poll recovers.
+      return
+    }
+    root.stats = parsed
+    var now = Date.now()
+    if (parsed.cpu) root.cpuHistory = root.appendHistory(root.cpuHistory, now, parsed.cpu.percent)
+    if (parsed.memory) root.memHistory = root.appendHistory(root.memHistory, now, parsed.memory.percent)
+    if (parsed.network) {
+      root.rxHistory = root.appendHistory(root.rxHistory, now, parsed.network.rxBytesPerSec)
+      root.txHistory = root.appendHistory(root.txHistory, now, parsed.network.txBytesPerSec)
     }
   }
 
@@ -343,8 +374,8 @@ Item {
   readonly property color warn: Color.urgent
   readonly property string uiFont: Style.font.menuFamily
 
-  // Gauge hues come from the live theme's full palette (the shared Color
-  // singleton only carries the foundational four), falling back to accent.
+  // The "equipped" green comes from the live theme's full palette (the shared
+  // Color singleton only carries the foundational four), falling back to accent.
   function lc(key, fallback) {
     var t = root.liveThemeObject
     var v = (t && t.colors) ? t.colors[key] : undefined
@@ -367,21 +398,6 @@ Item {
   }
   readonly property color paneBg: lift(Style.normalFillAlpha)
   readonly property color paneBgFocused: lift(Style.hoverFillAlpha)
-  readonly property color trackColor: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.12)
-
-  // Input is kibibytes: 1G is 1024*1024 KiB, 1T is 1024 times that again.
-  function fmtBytes(kb) {
-    if (kb >= 1073741824) return (kb / 1073741824).toFixed(1) + "T"
-    if (kb >= 1048576) return (kb / 1048576).toFixed(1) + "G"
-    if (kb >= 1024) return (kb / 1024).toFixed(0) + "M"
-    return kb + "K"
-  }
-
-  function fmtRate(bytesPerSec) {
-    if (bytesPerSec >= 1048576) return (bytesPerSec / 1048576).toFixed(1) + "M/s"
-    if (bytesPerSec >= 1024) return (bytesPerSec / 1024).toFixed(0) + "K/s"
-    return bytesPerSec + "B/s"
-  }
 
   // ====================================================================
   PanelWindow {
@@ -483,125 +499,12 @@ Item {
           }
         }
 
-        // ---- Stats strip (bottom) --------------------------------------
-        BorderSurface {
+        // ---- Character sheet (bottom) ----------------------------------
+        StatsStrip {
           id: statsStrip
           anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
-          height: Style.space(108)
-          color: root.paneBg
-          radius: Style.cornerRadius
-          borderSpec: Border.controlSpec("normal", root.fg, root.accent)
-
-          Row {
-            anchors { fill: parent; margins: Style.space(18) }
-            spacing: Style.space(26)
-
-            Gauge {
-              width: Style.space(88); height: parent.height
-              label: "CPU"
-              value: root.stats.cpu ? root.stats.cpu.percent : -1
-              readout: (root.stats.cpu ? root.stats.cpu.percent : 0) + "%"
-              sub: root.stats.cpu ? root.stats.cpu.cores + "c · " +
-                   (root.stats.cpu.temp >= 0 ? root.stats.cpu.temp + "°" : "—") : ""
-              ringColor: root.lc("green", root.accent)
-              trackColor: root.trackColor
-              textColor: root.fg
-              mutedColor: root.muted
-              fontFamily: root.uiFont
-            }
-
-            Gauge {
-              width: Style.space(88); height: parent.height
-              label: "GPU"
-              value: root.stats.gpu ? root.stats.gpu.percent : -1
-              readout: (root.stats.gpu && root.stats.gpu.percent >= 0 ? root.stats.gpu.percent : 0) + "%"
-              sub: root.stats.gpu && root.stats.gpu.temp >= 0 ? root.stats.gpu.temp + "°" : ""
-              ringColor: root.lc("magenta", root.accent)
-              trackColor: root.trackColor
-              textColor: root.fg
-              mutedColor: root.muted
-              fontFamily: root.uiFont
-            }
-
-            Column {
-              width: Style.space(200)
-              anchors.verticalCenter: parent.verticalCenter
-              spacing: Style.space(12)
-
-              Meter {
-                width: parent.width; height: Style.space(30)
-                label: "MEMORY"
-                value: root.stats.memory ? root.stats.memory.percent : 0
-                readout: root.stats.memory
-                  ? root.fmtBytes(root.stats.memory.usedKb) + " / " + root.fmtBytes(root.stats.memory.totalKb)
-                  : "—"
-                fillColor: root.lc("blue", root.accent)
-                trackColor: root.trackColor
-                textColor: root.fg
-                mutedColor: root.muted
-                fontFamily: root.uiFont
-              }
-
-              Meter {
-                width: parent.width; height: Style.space(30)
-                label: "DISK"
-                value: root.stats.disk ? root.stats.disk.percent : 0
-                readout: root.stats.disk
-                  ? root.fmtBytes(root.stats.disk.usedKb) + " / " + root.fmtBytes(root.stats.disk.totalKb)
-                  : "—"
-                fillColor: root.lc("cyan", root.accent)
-                trackColor: root.trackColor
-                textColor: root.fg
-                mutedColor: root.muted
-                fontFamily: root.uiFont
-              }
-            }
-
-            Column {
-              width: Style.space(150)
-              anchors.verticalCenter: parent.verticalCenter
-              spacing: Style.space(12)
-
-              Meter {
-                width: parent.width; height: Style.space(30)
-                label: "SWAP"
-                value: root.stats.swap ? root.stats.swap.percent : 0
-                readout: root.stats.swap ? root.stats.swap.percent + "%" : "—"
-                fillColor: root.lc("yellow", root.accent)
-                trackColor: root.trackColor
-                textColor: root.fg
-                mutedColor: root.muted
-                fontFamily: root.uiFont
-              }
-
-              Item {
-                width: parent.width; height: Style.space(30)
-
-                Text {
-                  anchors.left: parent.left
-                  anchors.top: parent.top
-                  text: "NETWORK"
-                  color: root.muted
-                  font.family: root.uiFont
-                  font.pixelSize: Style.font.caption
-                  font.letterSpacing: 1
-                }
-
-                Text {
-                  anchors.left: parent.left
-                  anchors.bottom: parent.bottom
-                  text: root.stats.network
-                    ? "↓ " + root.fmtRate(root.stats.network.rxBytesPerSec) +
-                      "   ↑ " + root.fmtRate(root.stats.network.txBytesPerSec)
-                    : "—"
-                  color: root.fg
-                  font.family: root.uiFont
-                  font.pixelSize: Style.font.bodySmall
-                  font.bold: true
-                }
-              }
-            }
-          }
+          height: Style.space(150)
+          host: root
         }
 
         // ---- Body: slots left, preview right ---------------------------
