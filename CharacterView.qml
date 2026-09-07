@@ -4,8 +4,8 @@ import QtQuick
 import qs.Commons
 
 // The character: the mock desktop in a bracketed viewport with every slot's
-// current fitting called out around it — outfit down the left, cyberware down
-// the right, chassis along the foot — each tethered to the viewport by a
+// current fitting called out around it — style down the left, cyberware down
+// the right, shell along the foot — each tethered to the viewport by a
 // leader line. Callouts read from the same preview/fitted/live state as the slot
 // list, so browsing on the left re-labels the character on the right at once.
 Item {
@@ -55,7 +55,7 @@ Item {
   TechFrame {
     id: viewport
     anchors.horizontalCenter: parent.horizontalCenter
-    // The group (viewport, nameplate, chassis row) sits centred in the pane.
+    // The group (viewport, nameplate, shell row) sits centred in the pane.
     readonly property real groupHeight: height + Style.space(12 + 30)
       + (root.compact ? Style.space(24) + grid.height : Style.space(34) + root.calloutHeight)
     y: Math.max(Style.space(16), (parent.height - groupHeight) / 2)

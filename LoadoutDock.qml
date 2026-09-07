@@ -4,15 +4,20 @@ import QtQuick
 import qs.Commons
 
 // The saved loadouts, worn across the top of the screen: one small card per
-// fitting, thumbnail and name, the equipped one ringed. Hovering a card
-// previews it on the character, clicking selects it, ENTER equips it. The
-// keyboard reaches the same row as the last stop of ↑ ↓.
+// fitting, thumbnail and name, the equipped one ringed. Three cards show at
+// a time; chevrons at either end scroll the rest. The NEW card sits outside
+// the scroller so it is always at hand. Hovering a card previews it on the
+// character, clicking moves the cursor there, ENTER fits it, and the small
+// cross on a card deletes it (after asking). The keyboard reaches the same
+// row as the last stop of ↑ ↓.
 Item {
   id: root
 
   property var host: null
 
   readonly property var items: host ? host.itemsFor("loadouts") : []
+  readonly property var saved: items.filter(function(i) { return !i.isNew })
+  readonly property int visibleCards: 3
   readonly property int selected: host ? host.selectedIndexFor("loadouts") : 0
   readonly property bool focused: host ? host.onLoadouts : false
   readonly property string stagedId: host && host.staged ? String(host.staged["loadouts"] || "") : ""
@@ -28,24 +33,80 @@ Item {
   readonly property real cardHeight: Style.space(44)
   readonly property real cardWidth: Style.space(160)
   readonly property real newWidth: Style.space(96)
+  readonly property real gap: Style.space(10)
+  readonly property real chevronWidth: Style.space(18)
 
   implicitHeight: cardHeight
 
-  ListView {
-    id: list
-    // Centred while the row fits, scrolling once it does not.
-    width: Math.min(parent.width, contentWidth)
+  // Chevron + scroller + chevron + NEW, centred as a group.
+  Row {
+    id: group
     anchors.horizontalCenter: parent.horizontalCenter
     height: parent.height
-    orientation: ListView.Horizontal
-    spacing: Style.space(10)
-    clip: true
-    model: root.items
-    currentIndex: root.selected
-    highlightMoveDuration: 180
-    onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+    spacing: root.gap
 
-    delegate: Item {
+    Chevron {
+      glyph: "󰅁"
+      enabled: list.contentX > 1
+      visible: root.saved.length > root.visibleCards
+      onClicked: list.contentX = Math.max(0, list.contentX - (root.cardWidth + root.gap))
+    }
+
+    ListView {
+      id: list
+      readonly property int shown: Math.min(root.visibleCards, Math.max(1, root.saved.length))
+      width: root.saved.length === 0 ? 0 : shown * root.cardWidth + (shown - 1) * root.gap
+      height: parent.height
+      orientation: ListView.Horizontal
+      spacing: root.gap
+      clip: true
+      model: root.saved
+      currentIndex: Math.min(root.selected, root.saved.length - 1)
+      highlightMoveDuration: 180
+      boundsBehavior: Flickable.StopAtBounds
+      onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+
+      delegate: LoadoutCard {}
+    }
+
+    Chevron {
+      glyph: "󰅂"
+      enabled: list.contentX + list.width < list.contentWidth - 1
+      visible: root.saved.length > root.visibleCards
+      onClicked: list.contentX = Math.min(list.contentWidth - list.width, list.contentX + (root.cardWidth + root.gap))
+    }
+
+    // The NEW card, outside the scroller.
+    LoadoutCard {
+      index: root.saved.length
+      modelData: root.items.length > 0 ? root.items[root.items.length - 1] : ({ id: "__new", name: "NEW LOADOUT", isNew: true })
+    }
+  }
+
+  component Chevron: Item {
+    id: chev
+    property string glyph: ""
+    signal clicked()
+    width: root.chevronWidth
+    height: root.cardHeight
+    opacity: enabled ? 1 : 0.25
+    Text {
+      anchors.centerIn: parent
+      text: chev.glyph
+      color: chevMouse.containsMouse && chev.enabled ? root.accent : root.muted
+      font.family: root.uiFont
+      font.pixelSize: Style.font.iconLarge
+    }
+    MouseArea {
+      id: chevMouse
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: chev.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+      onClicked: if (chev.enabled) chev.clicked()
+    }
+  }
+
+  component LoadoutCard: Item {
       id: card
       required property int index
       required property var modelData
@@ -169,8 +230,27 @@ Item {
           onExited: if (!card.isNew && root.host) root.host.unhoverLoadout()
           onClicked: if (root.host) root.host.pickLoadout(card.modelData.id)
         }
+
+        // Delete: a small cross in the corner, shown while the pointer or
+        // the cursor is on the card. Asks before it does anything.
+        Text {
+          id: deleteButton
+          visible: !card.isNew && (mouse.containsMouse || card.isCursor || deleteMouse.containsMouse)
+          anchors { right: parent.right; top: parent.top; rightMargin: Style.space(4); topMargin: Style.space(1) }
+          text: "󰅖"
+          color: deleteMouse.containsMouse ? root.warn : root.muted
+          font.family: root.uiFont
+          font.pixelSize: Style.font.caption + 2
+          MouseArea {
+            id: deleteMouse
+            anchors.fill: parent
+            anchors.margins: -Style.space(4)
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: if (root.host) root.host.requestDeleteLoadout(card.modelData.id)
+          }
+        }
       }
-    }
   }
 
   Text {

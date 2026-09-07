@@ -68,15 +68,16 @@ Item {
   }
 
   // ---- Categories and slots ------------------------------------------
-  // OUTFIT is what the desktop wears, CHASSIS is the frame it hangs on, and
-  // CYBERWARE is the tooling wired into it. A slot's `apply` is the command
+  // STYLE is what the desktop wears, SHELL is the frame it hangs on, and
+  // CYBERWARE is the tooling wired into it. (The ids keep their original
+  // names; they are keys in saved loadouts.) A slot's `apply` is the command
   // prefix; the fitted item id is appended as the final argument. `order` is
   // the deploy order: theme first because the background depends on it, the
   // font last because it restarts the shell. Adding a slot means one entry
   // here and a matching branch in itemsFor().
   readonly property var categories: [
-    { id: "outfit",    label: "OUTFIT",    icon: "󰩻" },
-    { id: "chassis",   label: "CHASSIS",   icon: "󰕮" },
+    { id: "outfit",    label: "STYLE",     icon: "󰩻" },
+    { id: "chassis",   label: "SHELL",     icon: "󰕮" },
     { id: "cyberware", label: "CYBERWARE", icon: "󰘚" }
   ]
 
@@ -503,7 +504,7 @@ Item {
 
   // ENTER: the preview becomes part of the fitting.
   function fitPreview() {
-    if (root.promptOpen || root.discardPromptOpen || root.applying) return
+    if (root.promptOpen || root.confirmOpen || root.applying) return
     if (root.previewSlot === "") {
       // Nothing previewed. On the loadouts row ENTER takes the card under
       // the cursor; on a slot the cursor already sits on the fitted item.
@@ -540,7 +541,7 @@ Item {
   // cursor onto the card.
   property bool hoverOwnsPreview: false
   function hoverLoadout(loadoutId) {
-    if (root.promptOpen || root.discardPromptOpen || root.applying) return
+    if (root.promptOpen || root.confirmOpen || root.applying) return
     var owns = root.previewSlot === "" || root.hoverOwnsPreview
     root.previewLoadout(loadoutId)
     root.hoverOwnsPreview = owns
@@ -549,7 +550,7 @@ Item {
     if (root.hoverOwnsPreview) root.clearPreview()
   }
   function pickLoadout(loadoutId) {
-    if (root.promptOpen || root.discardPromptOpen || root.applying) return
+    if (root.promptOpen || root.confirmOpen || root.applying) return
     root.slotIndex = root.loadoutsSlotIndex
     root.previewLoadout(loadoutId)
   }
@@ -585,18 +586,52 @@ Item {
     root.statusText = "saving…"
   }
 
+  // Deleting asks first: X on the row, or the card's own delete button.
+  property string deleteTargetId: ""
+  property string deleteTargetName: ""
+  function requestDeleteLoadout(loadoutId) {
+    if (root.promptOpen || root.applying) return
+    var items = root.itemsFor("loadouts")
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].id === loadoutId && !items[i].isNew) {
+        root.deleteTargetId = items[i].id
+        root.deleteTargetName = items[i].name
+        root.openConfirm("delete")
+        return
+      }
+    }
+  }
   function deleteCurrentLoadout() {
     if (!root.onLoadouts) return
     var item = root.selectedItem("loadouts")
     if (!item || item.isNew) return
-    deleteProc.command = [root.pluginDir + "/loadouts.sh", "delete", item.id]
+    root.requestDeleteLoadout(item.id)
+  }
+  function deleteLoadoutNow() {
+    if (!root.deleteTargetId) return
+    deleteProc.command = [root.pluginDir + "/loadouts.sh", "delete", root.deleteTargetId]
     deleteProc.running = true
     var next = {}
     for (var k in root.staged) next[k] = root.staged[k]
     next["loadouts"] = ""
     root.staged = next
-    root.statusText = "deleted " + item.name
+    root.clearPreview()
+    root.statusText = "deleted " + root.deleteTargetName
+    root.deleteTargetId = ""
+    root.deleteTargetName = ""
   }
+
+  // One confirm prompt, two questions.
+  property string confirmAction: ""
+  readonly property bool confirmOpen: confirmAction !== ""
+  function openConfirm(action) { root.confirmAction = action }
+  function confirmAccept() {
+    var action = root.confirmAction
+    root.confirmAction = ""
+    if (action === "discard") root.discardAndClose()
+    else if (action === "delete") root.deleteLoadoutNow()
+  }
+  function confirmCancel() { root.confirmAction = "" }
 
   // Name of the saved loadout the character currently represents, if any.
   readonly property string activeLoadoutName: {
@@ -688,7 +723,7 @@ Item {
     root.preview = ({})
     root.previewSlot = ""
     root.hoverOwnsPreview = false
-    root.discardPromptOpen = false
+    root.confirmAction = ""
     root.slotIndex = 0
     root.modsCursor = 0
     root.statusText = ""
@@ -701,13 +736,11 @@ Item {
   }
 
   // ESC and the backdrop: a fitting that was never deployed is work, so ask.
-  property bool discardPromptOpen: false
   function requestClose() {
-    if (root.dirty) { root.discardPromptOpen = true; return }
+    if (root.dirty) { root.openConfirm("discard"); return }
     root.dismiss()
   }
   function discardAndClose() {
-    root.discardPromptOpen = false
     root.staged = ({})
     root.clearPreview()
     root.dismiss()
@@ -753,7 +786,7 @@ Item {
   // shell, so a font change (which restarts the shell) cannot cut it short;
   // it reports back with a notification and a result file scan.sh reads.
   function deploy() {
-    if (!root.dirty || root.applying || root.promptOpen || root.discardPromptOpen) return
+    if (!root.dirty || root.applying || root.promptOpen || root.confirmOpen) return
     var cmds = root.deployCommands()
     if (cmds.length === 0) return
     root.applying = true
@@ -895,9 +928,9 @@ Item {
       Keys.onPressed: function(event) {
         if (root.promptOpen) return   // the name prompt owns the keyboard
         var k = event.key
-        if (root.discardPromptOpen) {
-          if (k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Y) root.discardAndClose()
-          else if (k === Qt.Key_Escape || k === Qt.Key_N) root.discardPromptOpen = false
+        if (root.confirmOpen) {
+          if (k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Y) root.confirmAccept()
+          else if (k === Qt.Key_Escape || k === Qt.Key_N) root.confirmCancel()
           event.accepted = true
           return
         }
@@ -1044,16 +1077,16 @@ Item {
         }
       }
 
-      // ---- Discard prompt ----------------------------------------------
+      // ---- Confirm prompt (discard fitting / delete loadout) -----------
       Item {
         anchors.fill: parent
-        visible: root.discardPromptOpen
+        visible: root.confirmOpen
         z: 10
 
         Rectangle {
           anchors.fill: parent
           color: Qt.rgba(root.backdrop.r, root.backdrop.g, root.backdrop.b, 0.72)
-          MouseArea { anchors.fill: parent; onClicked: root.discardPromptOpen = false }
+          MouseArea { anchors.fill: parent; onClicked: root.confirmCancel() }
         }
 
         TechFrame {
@@ -1080,7 +1113,7 @@ Item {
             spacing: Style.space(12)
 
             Text {
-              text: "DISCARD FITTING?"
+              text: root.confirmAction === "delete" ? "DELETE LOADOUT?" : "DISCARD FITTING?"
               color: root.warn
               font.family: root.uiFont
               font.pixelSize: Style.font.title
@@ -1091,6 +1124,8 @@ Item {
             Text {
               width: parent.width
               text: {
+                if (root.confirmAction === "delete")
+                  return "Remove \"" + root.deleteTargetName + "\" from the saved loadouts. The desktop keeps whatever it is wearing."
                 var n = 0
                 for (var k in root.staged) if (k !== "loadouts" && root.staged[k]) n++
                 return n + (n === 1 ? " slot is" : " slots are") + " fitted but not deployed. Leave without deploying?"
@@ -1102,7 +1137,7 @@ Item {
             }
 
             Text {
-              text: "ENTER  discard       ESC  keep fitting"
+              text: root.confirmAction === "delete" ? "ENTER  delete       ESC  keep" : "ENTER  discard       ESC  keep fitting"
               color: root.muted
               font.family: root.uiFont
               font.pixelSize: Style.font.caption

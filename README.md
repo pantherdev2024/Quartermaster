@@ -18,7 +18,8 @@ swap between them in one move.
 - `D` deploys the fitting for real and closes the screen; clicking the pill
   in the top corner does the same
 - `ESC` closes; if anything is fitted but not deployed it asks first
-- `S` saves the fitting on screen as a loadout, `X` deletes the selected one
+- `S` saves the fitting on screen as a loadout, `X` (or the cross on a card)
+  deletes the selected one, after asking
 
 The screen opens on Hyprland's focused monitor. A summon payload can name an
 output instead, which is handy for scripting and screenshots:
@@ -40,10 +41,10 @@ the top of the left column. The active pill spells out its name.
 
 | Category | Slot | Inventory source | Applied with |
 |----------|------|------------------|--------------|
-| **Outfit** | Theme | `~/.config/omarchy/themes` + `/usr/share/omarchy/themes` | `omarchy-theme-set` |
+| **Style** | Theme | `~/.config/omarchy/themes` + `/usr/share/omarchy/themes` | `omarchy-theme-set` |
 | | Background | the fitted theme's `backgrounds/` | `omarchy-theme-bg-set` |
 | | Font | `omarchy font list` | `omarchy-font-set` |
-| **Chassis** | Bar position | top / bottom / left / right | `omarchy-bar position` |
+| **Shell** | Bar position | top / bottom / left / right | `omarchy-bar position` |
 | | Bar surface | solid / transparent | `omarchy-bar transparent` |
 | | Text size | 9–20 px | `omarchy-display-text-size` |
 | | Bar mods | every `bar-widget` plugin in the catalogue | `omarchy plugin enable` / `disable`, `omarchy bar move` |
@@ -52,8 +53,8 @@ the top of the left column. The active pill spells out its name.
 | | Browser | installed browsers `omarchy default browser` knows | `omarchy-default-browser` |
 | | Agent | coding agents on `PATH` | `agent-set.sh` |
 
-Outfit is what the desktop wears, Chassis is the frame it hangs on, and
-Cyberware is the tooling wired into it. Chassis choices preview live: the
+Style is what the desktop wears, Shell is the frame it hangs on, and
+Cyberware is the tooling wired into it. Shell choices preview live: the
 mini desktop moves its bar, drops the bar fill, scales its type, and mirrors
 the bar's widget layout.
 
@@ -118,7 +119,7 @@ clears that until you save again.
 
 `scan.sh` emits the whole inventory as one JSON document: themes with their
 parsed `colors.toml` palettes, preview images and wallpapers, the installed
-tools each default slot can take, the chassis options, and the saved loadouts
+tools each default slot can take, the shell options, and the saved loadouts
 from `loadouts.sh list`.
 
 The centre of the character view is a *mock* desktop, not a screen capture. A
