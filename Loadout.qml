@@ -27,7 +27,6 @@ Item {
 
   property bool opened: false
   property var inventory: ({})
-  property var stats: ({})
   property bool applying: false
   property string statusText: ""
 
@@ -94,8 +93,13 @@ Item {
       // contents change as the theme cursor moves.
       var t = root.stagedThemeObject
       if (!t || !t.backgrounds) return []
+      // The live background resolves through ~/.local/state/omarchy/current/
+      // theme, a different path from the theme's own folder, so match on
+      // the file name rather than the full path.
+      var live = String(inv.currentBackground || "").split("/").pop()
       return t.backgrounds.map(function(p) {
-        return { id: p, name: p.split("/").pop().replace(/\.[^.]+$/, ""), path: p }
+        var file = p.split("/").pop()
+        return { id: p, name: file.replace(/\.[^.]+$/, ""), path: p, equipped: t.equipped && file === live }
       })
     }
     return []
@@ -237,7 +241,6 @@ Item {
     root.slotIndex = 0
     root.statusText = ""
     scanProc.running = true
-    statsProc.running = true
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
@@ -261,45 +264,6 @@ Item {
       root.inventory = JSON.parse(raw)
     } catch (e) {
       root.statusText = "inventory scan failed"
-    }
-  }
-
-  // Two-minute rolling histories for the character sheet's charts. Points
-  // are {time, value}; the sparkline positions them by wall clock, so a gap
-  // between opens simply ages out rather than drawing a false flat line.
-  property var cpuHistory: []
-  property var memHistory: []
-  property var rxHistory: []
-  property var txHistory: []
-  readonly property int historyWindowMs: 120000
-
-  function appendHistory(current, timestamp, value) {
-    if (!isFinite(value) || value < 0) return current
-    var cutoff = timestamp - root.historyWindowMs
-    var next = []
-    for (var i = 0; i < current.length; i++) {
-      if (current[i].time >= cutoff) next.push(current[i])
-    }
-    next.push({ time: timestamp, value: value })
-    if (next.length > 130) next = next.slice(next.length - 130)
-    return next
-  }
-
-  function loadStats(raw) {
-    var parsed
-    try {
-      parsed = JSON.parse(raw)
-    } catch (e) {
-      // A dropped sample is not worth surfacing; the next poll recovers.
-      return
-    }
-    root.stats = parsed
-    var now = Date.now()
-    if (parsed.cpu) root.cpuHistory = root.appendHistory(root.cpuHistory, now, parsed.cpu.percent)
-    if (parsed.memory) root.memHistory = root.appendHistory(root.memHistory, now, parsed.memory.percent)
-    if (parsed.network) {
-      root.rxHistory = root.appendHistory(root.rxHistory, now, parsed.network.rxBytesPerSec)
-      root.txHistory = root.appendHistory(root.txHistory, now, parsed.network.txBytesPerSec)
     }
   }
 
@@ -359,24 +323,6 @@ Item {
     }
   }
 
-  Process {
-    id: statsProc
-    command: [root.pluginDir + "/stats.sh"]
-    running: false
-    stdout: StdioCollector {
-      onStreamFinished: root.loadStats(this.text)
-    }
-  }
-
-  // Only poll while the screen is actually up — this plugin shares the
-  // long-running shell process, so an idle poll would be a permanent tax.
-  Timer {
-    interval: 2000
-    running: root.opened
-    repeat: true
-    onTriggered: if (!statsProc.running) statsProc.running = true
-  }
-
   // ---- Chrome palette --------------------------------------------------
   // The screen's own chrome follows the live Omarchy theme through the shared
   // Color/Style singletons, exactly like the stock menu and clipboard
@@ -412,6 +358,7 @@ Item {
   }
   readonly property color paneBg: lift(Style.normalFillAlpha)
   readonly property color paneBgFocused: lift(Style.hoverFillAlpha)
+  readonly property color line: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.22)
 
   // ====================================================================
   PanelWindow {
@@ -428,6 +375,21 @@ Item {
     Rectangle {
       anchors.fill: parent
       color: root.backdrop
+    }
+
+    // Faint scanlines. Painted once per size; children over it are opaque
+    // or nested, so this is safe on the layer surface.
+    Canvas {
+      anchors.fill: parent
+      onWidthChanged: requestPaint()
+      onHeightChanged: requestPaint()
+      onPaint: {
+        var ctx = getContext("2d")
+        ctx.reset()
+        ctx.clearRect(0, 0, width, height)
+        ctx.fillStyle = Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.035)
+        for (var y = 0; y < height; y += 4) ctx.fillRect(0, y, width, 1)
+      }
     }
 
     MouseArea {
@@ -482,58 +444,76 @@ Item {
           anchors { top: parent.top; left: parent.left; right: parent.right }
           height: Style.space(44)
 
-          Text {
+          Row {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            text: "LOADOUT"
-            color: root.accent
-            font.family: root.uiFont
-            font.pixelSize: Style.font.display
-            font.bold: true
-            font.letterSpacing: 6
+            spacing: Style.space(14)
+
+            Text {
+              text: "LOADOUT"
+              color: root.accent
+              font.family: root.uiFont
+              font.pixelSize: Style.font.display
+              font.bold: true
+              font.letterSpacing: 7
+              anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Rectangle {
+              width: 1; height: Style.space(22)
+              color: root.line
+              anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Text {
+              text: "EQUIP SYSTEM // " + root.categories[root.currentCategoryIndex].label
+              color: root.muted
+              font.family: root.uiFont
+              font.pixelSize: Style.font.caption
+              font.letterSpacing: 2.5
+              anchors.verticalCenter: parent.verticalCenter
+            }
           }
 
-          Text {
-            anchors.centerIn: parent
-            text: root.stagedThemeObject ? root.stagedThemeObject.name.toUpperCase() : ""
-            color: root.fg
-            font.family: root.uiFont
-            font.pixelSize: Style.font.title
-            font.letterSpacing: 3
-          }
-
-          Text {
+          TechFrame {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.statusText || (root.dirty ? "UNAPPLIED CHANGES" : "SYNCED")
-            color: root.dirty ? root.warn : root.muted
-            font.family: root.uiFont
-            font.pixelSize: Style.font.body
-            font.letterSpacing: 2
+            width: statusLabel.implicitWidth + Style.space(28)
+            height: Style.space(26)
+            chamfer: Style.space(8)
+            fill: root.paneBg
+            stroke: root.dirty ? root.warn : root.line
+            edge: "left"
+            edgeColor: root.dirty ? root.warn : root.good
+            edgeWidth: Style.space(3)
+
+            Text {
+              id: statusLabel
+              anchors.centerIn: parent
+              anchors.horizontalCenterOffset: Style.space(2)
+              text: (root.statusText || (root.dirty ? "UNAPPLIED CHANGES" : "SYNCED")).toUpperCase()
+              color: root.dirty ? root.warn : root.fg
+              font.family: root.uiFont
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              font.letterSpacing: 2
+            }
           }
         }
 
-        // ---- Character sheet (bottom) ----------------------------------
-        StatsStrip {
-          id: statsStrip
-          anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
-          height: Style.space(150)
-          host: root
-        }
-
-        // ---- Body: slots left, preview right ---------------------------
+        // ---- Body: slots left, character right -------------------------
         Item {
           id: body
           anchors {
-            top: header.bottom; topMargin: Style.space(16)
-            bottom: statsStrip.top; bottomMargin: Style.space(16)
+            top: header.bottom; topMargin: Style.space(22)
+            bottom: parent.bottom
             left: parent.left; right: parent.right
           }
 
-          readonly property real gutter: Style.space(32)
-          readonly property real leftWidth: Math.max(Style.space(420), width * 0.42)
+          readonly property real gutter: Style.space(40)
+          readonly property real leftWidth: Math.max(Style.space(420), width * 0.40)
 
-          // -- Left column: category pills, then the slot list -----------
+          // -- Left column: category tabs, then the slot list -----------
           Item {
             id: leftColumn
             width: body.leftWidth
@@ -542,47 +522,77 @@ Item {
             Row {
               id: tabs
               anchors { left: parent.left; top: parent.top }
-              spacing: Style.spacing.md
+              spacing: Style.space(6)
 
               Repeater {
                 model: root.categories
-                delegate: Button {
+                delegate: TechFrame {
+                  id: tab
                   required property var modelData
                   required property int index
                   readonly property bool isActive: modelData.id === root.currentCategory
-                  iconText: modelData.icon
-                  iconSize: Style.font.iconLarge
-                  // Only the active pill spells out its name, like the tab
-                  // strip in the reference; the rest stay as glyphs.
-                  text: isActive ? modelData.label : ""
-                  selected: isActive
-                  bordered: true
-                  foreground: root.fg
-                  accent: root.accent
-                  fontFamily: root.uiFont
-                  fontSize: Style.font.body
-                  horizontalPadding: isActive ? Style.spacing.controlPaddingX + Style.space(4) : Style.spacing.controlPaddingX
-                  verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
-                  tooltipText: isActive ? "" : modelData.label + "  [" + (index + 1) + "]"
-                  onClicked: root.selectCategory(modelData.id)
+                  readonly property bool hot: isActive || tabMouse.containsMouse
+
+                  width: tabRow.implicitWidth + Style.space(28)
+                  height: Style.space(36)
+                  chamfer: Style.space(9)
+                  cuts: ["tl", "br"]
+                  fill: isActive ? root.paneBgFocused : root.paneBg
+                  stroke: isActive ? root.accent : (tabMouse.containsMouse ? root.fg : root.line)
+                  strokeWidth: 1
+                  edge: "bottom"
+                  edgeColor: root.accent
+                  edgeWidth: isActive ? Style.space(3) : 0
+
+                  Row {
+                    id: tabRow
+                    anchors.centerIn: parent
+                    spacing: Style.space(8)
+
+                    Text {
+                      text: tab.modelData.icon
+                      color: tab.isActive ? root.accent : root.fg
+                      font.family: root.uiFont
+                      font.pixelSize: Style.font.iconLarge
+                      anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                      visible: tab.isActive
+                      text: tab.modelData.label
+                      color: root.accent
+                      font.family: root.uiFont
+                      font.pixelSize: Style.font.body
+                      font.bold: true
+                      font.letterSpacing: 2.5
+                      anchors.verticalCenter: parent.verticalCenter
+                    }
+                  }
+
+                  MouseArea {
+                    id: tabMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.selectCategory(tab.modelData.id)
+                  }
                 }
               }
             }
 
             Text {
               anchors { left: tabs.right; leftMargin: Style.space(14); verticalCenter: tabs.verticalCenter }
-              text: (root.currentCategoryIndex + 1) + " / " + root.categories.length
+              text: String(root.currentCategoryIndex + 1).padStart(2, "0") + " / " + String(root.categories.length).padStart(2, "0")
               color: root.muted
               font.family: root.uiFont
               font.pixelSize: Style.font.caption
-              font.letterSpacing: 1
+              font.letterSpacing: 1.5
             }
 
             // Slots scroll if a small screen can't fit the whole category.
             Flickable {
               id: slotScroll
               anchors { left: parent.left; right: parent.right; top: tabs.bottom; bottom: parent.bottom }
-              anchors.topMargin: Style.space(18)
+              anchors.topMargin: Style.space(22)
               contentWidth: width
               contentHeight: slotList.implicitHeight
               clip: true
@@ -591,7 +601,7 @@ Item {
               Column {
                 id: slotList
                 width: slotScroll.width
-                spacing: Style.space(14)
+                spacing: Style.space(24)
 
                 Repeater {
                   model: root.visibleSlots
@@ -606,116 +616,26 @@ Item {
             }
           }
 
-          // -- Right column: the mock desktop, the item card, the hints --
-          Item {
-            id: rightColumn
+          // -- Right column: the character and its fittings --------------
+          CharacterView {
+            id: character
             anchors {
               left: leftColumn.right; leftMargin: body.gutter
-              right: parent.right; top: parent.top; bottom: parent.bottom
+              right: parent.right; top: parent.top; bottom: hints.top; bottomMargin: Style.space(12)
             }
+            host: root
+          }
 
-            MiniDesktop {
-              id: preview
-              anchors { top: parent.top; horizontalCenter: parent.horizontalCenter }
-              width: Math.min(parent.width, (parent.height * 0.68) * (16 / 9))
-              height: width * (9 / 16)
-
-              colors: root.stagedThemeObject ? root.stagedThemeObject.colors : ({})
-              wallpaper: root.previewWallpaper
-              fontFamily: root.previewFont
-              themeName: root.stagedThemeObject ? root.stagedThemeObject.name : ""
-              terminalName: root.previewTerminal
-              barPosition: root.previewBarPosition
-              barTransparent: root.previewBarTransparent
-              fontScale: root.previewFontScale
-            }
-
-            // Detail card for the item under the cursor — the reference's
-            // description panel, kept to what we can honestly say about it.
-            BorderSurface {
-              id: detail
-              anchors {
-                top: preview.bottom; topMargin: Style.space(18)
-                left: preview.left; right: preview.right
-              }
-              height: detailColumn.implicitHeight + Style.space(28)
-              color: root.paneBg
-              radius: Style.cornerRadius
-              borderSpec: Border.controlSpec("normal", root.fg, root.accent)
-
-              readonly property var item: root.selectedItem(root.currentSlot.id)
-              readonly property bool itemStaged: root.staged[root.currentSlot.id] ? true : false
-
-              Column {
-                id: detailColumn
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Style.space(14) }
-                spacing: Style.space(6)
-
-                Row {
-                  spacing: Style.space(10)
-                  Text {
-                    text: root.currentSlot.icon
-                    color: root.accent
-                    font.family: root.uiFont
-                    font.pixelSize: Style.font.iconLarge
-                    anchors.verticalCenter: parent.verticalCenter
-                  }
-                  Text {
-                    text: root.currentSlot.label
-                    color: root.muted
-                    font.family: root.uiFont
-                    font.pixelSize: Style.font.caption
-                    font.letterSpacing: 2
-                    anchors.verticalCenter: parent.verticalCenter
-                  }
-                  Text {
-                    visible: detail.item ? true : false
-                    text: detail.itemStaged ? "STAGED" : (detail.item && detail.item.equipped ? "EQUIPPED" : "")
-                    color: detail.itemStaged ? root.warn : root.good
-                    font.family: root.uiFont
-                    font.pixelSize: Style.font.caption
-                    font.bold: true
-                    font.letterSpacing: 2
-                    anchors.verticalCenter: parent.verticalCenter
-                  }
-                }
-
-                Text {
-                  width: parent.width
-                  text: detail.item ? detail.item.name : "Nothing available"
-                  color: root.fg
-                  font.family: root.uiFont
-                  font.pixelSize: Style.font.heading
-                  font.bold: true
-                  elide: Text.ElideRight
-                }
-
-                Text {
-                  width: parent.width
-                  text: {
-                    var it = detail.item
-                    if (!it) return ""
-                    if (it.path) return it.path
-                    return root.currentSlot.apply.join(" ") + " " + it.id
-                  }
-                  color: root.muted
-                  font.family: root.uiFont
-                  font.pixelSize: Style.font.bodySmall
-                  elide: Text.ElideMiddle
-                }
-              }
-            }
-
-            Text {
-              anchors { horizontalCenter: preview.horizontalCenter; bottom: parent.bottom }
-              text: root.dirty
-                ? "ENTER  apply for real       ESC  discard"
-                : "TAB category     ↑↓ slot     ←→ browse     ENTER apply     ESC close"
-              color: root.muted
-              font.family: root.uiFont
-              font.pixelSize: Style.font.bodySmall
-              font.letterSpacing: 2
-            }
+          Text {
+            id: hints
+            anchors { horizontalCenter: character.horizontalCenter; bottom: parent.bottom }
+            text: root.dirty
+              ? "ENTER  apply for real       ESC  discard"
+              : "TAB category     ↑↓ slot     ←→ browse     ENTER apply     ESC close"
+            color: root.muted
+            font.family: root.uiFont
+            font.pixelSize: Style.font.bodySmall
+            font.letterSpacing: 2
           }
         }
       }
