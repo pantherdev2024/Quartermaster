@@ -24,6 +24,13 @@ Item {
   property real t: 1
   property real margin: u * 2.5
 
+  // The workbench lights the token it has the cursor on, so a tile and its
+  // real place on the bar read as the same thing. The mini desktop leaves
+  // these alone and the rail draws as a plain bar.
+  property string highlightId: ""
+  property bool interactive: false
+  signal tokenHovered(string id)
+
   property string fontFamily: "monospace"
   property color fg: "#cacccc"
   property color dimFg: "#707880"
@@ -81,6 +88,7 @@ Item {
   component BarToken: Item {
     id: tok
     required property string modelData
+    readonly property bool lit: root.highlightId !== "" && root.highlightId === tok.modelData
     readonly property string kind: modelData === "omarchy.workspaces" ? "pips"
       : modelData === "omarchy.clock" ? "clock"
       : modelData === "omarchy.tray" ? "tray"
@@ -91,6 +99,19 @@ Item {
       : kind === "tray" ? tray.width : kind === "gap" ? root.u * 4 : glyph.width
     height: kind === "pips" ? pips.height : kind === "clock" ? clock.height
       : kind === "tray" ? tray.height : kind === "gap" ? root.u * 2 : glyph.height
+
+    // The cursor's token, lit from behind so pips and tray dots mark up
+    // as clearly as a glyph does.
+    Rectangle {
+      visible: tok.lit
+      anchors.centerIn: parent
+      width: parent.width + root.u * 2.6
+      height: parent.height + root.u * 2.2
+      radius: root.u * 0.8
+      color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.28)
+      border.width: Math.max(1, root.u * 0.22)
+      border.color: root.accent
+    }
 
     // Workspace pips — first one active in the accent color.
     Grid {
@@ -118,7 +139,7 @@ Item {
         ? Qt.formatDateTime(new Date(), "ddd d MMM  hh:mm")
         : Qt.formatDateTime(new Date(), "hh\n—\nmm")
       horizontalAlignment: Text.AlignHCenter
-      color: root.fg
+      color: tok.lit ? root.accent : root.fg
       font.family: root.fontFamily
       font.pixelSize: root.t * 3.4
     }
@@ -140,12 +161,19 @@ Item {
       }
     }
 
+    MouseArea {
+      anchors.fill: parent
+      enabled: root.interactive
+      hoverEnabled: root.interactive
+      onEntered: root.tokenHovered(tok.modelData)
+    }
+
     Text {
       id: glyph
       visible: tok.kind === "glyph"
       text: root.glyphFor(tok.modelData)
-      color: root.fg
-      opacity: 0.85
+      color: tok.lit ? root.accent : root.fg
+      opacity: tok.lit ? 1 : 0.85
       font.family: root.fontFamily
       font.pixelSize: root.t * 3.2
     }
