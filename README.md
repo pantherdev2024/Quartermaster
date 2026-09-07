@@ -5,6 +5,8 @@ defaults, watch a miniature desktop re-fit itself as you browse, fit what you
 like, then deploy the whole fitting for real. Save a fitting as a loadout and
 swap between them in one move.
 
+![The Loadout equip screen, with the Style category open](preview.png)
+
 ## Install
 
 ```sh
@@ -325,4 +327,6 @@ scan.sh            inventory as JSON (widgets and bar layout included)
 loadouts.sh        list / save / delete saved loadouts
 deploy.sh          runs a fitting's commands detached from the shell and reports back
 agent-set.sh       records the default agent without launching it
+preview.png        the marketplace card: the screen on a 1920x1080 monitor
+LICENSE            MIT
 ```
