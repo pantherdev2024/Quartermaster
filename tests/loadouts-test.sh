@@ -72,4 +72,34 @@ equals "after delete" "$("$LOADOUTS" list | jq 'map(select(.id == "desk-setup"))
 # A bad verb explains itself and fails, rather than silently doing nothing.
 if "$LOADOUTS" nonsense >/dev/null 2>&1; then fail "unknown verb should exit non-zero"; fi
 
+# --- an id that arrived from somewhere else ----------------------------
+# Saving slugs the name, so an id this script minted cannot escape. Ids also
+# come back in off the disk, and the directory is documented as syncable: a
+# loadout file from elsewhere carries whatever id it likes, and that id is
+# what the delete cross is handed. It must not name a path out of here.
+outside="$XDG_DATA_HOME/omarchy/victim.json"
+printf 'important\n' > "$outside"
+cat > "$DIR/innocent.json" <<'JSON'
+{"id":"../victim","name":"Looks Normal","slots":{"theme":"nord"},"savedAt":"2026-01-01T00:00:00-00:00"}
+JSON
+
+# It never reaches the screen, so there is no card to press the cross on.
+listed=$("$LOADOUTS" list | jq --arg n "Looks Normal" 'map(select(.name == $n)) | length')
+equals "hostile id is not listed" "$listed" "0"
+
+# And the verb refuses it outright, however it is called.
+for hostile in '../victim' '../../victim' '/etc/passwd' '.' '..' 'a/b'; do
+  if "$LOADOUTS" delete "$hostile" 2>/dev/null; then
+    fail "delete accepted an unsafe id: $hostile"
+  fi
+done
+[[ -f $outside ]] || fail "delete escaped the loadouts directory"
+
+# The guard rejects an escape, not an unusual name: a slug made under a UTF-8
+# locale keeps its accented letters, and those ids are already on disk.
+accented=$("$LOADOUTS" save 'Café' '{}')
+[[ -f "$DIR/$accented.json" ]] || fail "a legitimate accented id was written wrong"
+"$LOADOUTS" delete "$accented"
+[[ ! -f "$DIR/$accented.json" ]] || fail "a legitimate accented id could not be deleted"
+
 printf 'loadouts-test: ok\n'

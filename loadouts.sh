@@ -18,6 +18,22 @@ slug() {
   echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]\+/-/g; s/^-\+//; s/-\+$//'
 }
 
+# An id becomes a filename, so it has to name a file in this directory and not
+# a path out of it. Every id this script mints is a slug and is safe by
+# construction, but ids come back in off the disk: the directory is documented
+# as syncable, so a file that arrived from somewhere else carries whatever id
+# it likes, and delete would have followed "../../x" straight out of here.
+# Deliberately narrow -- it rejects an escape, not an unusual name -- because
+# a slug made under a UTF-8 locale keeps its accented letters and those ids
+# are already saved on people's machines.
+is_safe_id() {
+  local id="$1"
+  [[ -n $id ]] || return 1
+  [[ $id != */* ]] || return 1
+  [[ $id != "." && $id != ".." ]] || return 1
+  return 0
+}
+
 case "${1:-}" in
   list)
     # Parsed one file at a time on purpose. This directory is user-visible and
@@ -27,19 +43,24 @@ case "${1:-}" in
     # a file that parsed, so the parsing has to be per file to reach it.
     find "$dir" -maxdepth 1 -name '*.json' -print0 2>/dev/null | sort -z |
       while IFS= read -r -d '' file; do jq -c . "$file" 2>/dev/null || true; done |
-      jq -s 'map(select(.id and .name and .slots)) | sort_by(.savedAt) | reverse'
+      jq -s 'map(select(.id and .name and .slots
+                        and ((.id | type) == "string")
+                        and ((.id | contains("/")) | not)
+                        and .id != "." and .id != ".."))
+             | sort_by(.savedAt) | reverse'
     ;;
   save)
     name="${2:?name required}"
     slots="${3:?slots json required}"
     id="$(slug "$name")"
-    [[ -n $id ]] || id="loadout-$(date +%s)"
+    is_safe_id "$id" || id="loadout-$(date +%s)"
     jq -n --arg id "$id" --arg name "$name" --argjson slots "$slots" --arg savedAt "$(date -Is)" \
       '{id:$id, name:$name, slots:$slots, savedAt:$savedAt}' > "$dir/$id.json" || exit 1
     echo "$id"
     ;;
   delete)
     id="${2:?id required}"
+    is_safe_id "$id" || { echo "refusing unsafe loadout id: $id" >&2; exit 2; }
     rm -f "$dir/$id.json"
     ;;
   *)
