@@ -1,11 +1,11 @@
-# OmaKit
+# Quartermaster
 
 An RPG equip screen for Omarchy. Slot in themes, backgrounds, fonts and
 defaults, watch a miniature desktop re-fit itself as you browse, fit what you
 like, then deploy the whole fitting for real. Save a fitting as a loadout and
 swap between them in one move.
 
-![The OmaKit equip screen, with the Style category open](preview.png)
+![The Quartermaster equip screen, with the Style category open](preview.png)
 
 ## Install
 
@@ -27,14 +27,14 @@ two comfortable ways in are yours to add. Both are one line.
 A keybinding, in `~/.config/hypr/bindings.lua`:
 
 ```lua
-o.bind("SUPER + SHIFT + L", "OmaKit", "omarchy-shell shell toggle io.github.pantherdev2024.loadout")
+o.bind("SUPER + SHIFT + L", "Quartermaster", "omarchy-shell shell toggle io.github.pantherdev2024.loadout")
 ```
 
 A row under **Style** in the Omarchy menu, in
 `~/.config/omarchy/extensions/omarchy-menu.jsonc`:
 
 ```jsonc
-"style.loadout": {"icon":"󰆓","label":"OmaKit","aliases":["omakit","loadout","equip"],"description":"Equip themes, backgrounds and fonts with a live preview","action":"omarchy-shell shell toggle io.github.pantherdev2024.loadout"},
+"style.loadout": {"icon":"󰆓","label":"Quartermaster","aliases":["quartermaster","loadout","equip"],"description":"Equip themes, backgrounds and fonts with a live preview","action":"omarchy-shell shell toggle io.github.pantherdev2024.loadout"},
 ```
 
 ## What it needs and what it touches
@@ -63,7 +63,7 @@ ships an `omarchy-installed-service-*` check, that runs too, under a two second
 timeout — which is what keeps a widget with nothing behind it out of the
 catalogue.
 
-OmaKit writes in three places of its own: saved loadouts under
+Quartermaster writes in three places of its own: saved loadouts under
 `~/.local/share/omarchy/loadouts/`, a log and the last deploy's result under
 `~/.local/state/omarchy/loadout/`, and the default agent in
 `~/.config/omarchy/defaults/agent`, written directly for the reason given
@@ -82,7 +82,7 @@ omarchy plugin remove io.github.pantherdev2024.loadout
 ```
 
 That takes the plugin out of `~/.config/omarchy/plugins` and out of
-`shell.json`, and it undoes none of what you deployed. Every change OmaKit
+`shell.json`, and it undoes none of what you deployed. Every change Quartermaster
 makes it makes by running the ordinary Omarchy command, so a theme, font or
 default it applied stays applied exactly as if you had run that command
 yourself.
@@ -165,11 +165,11 @@ palette and the wallpaper once you fit them.
 `D` hands the fitting to `deploy.sh`, which runs one Omarchy command per
 fitted slot, in a fixed order: theme first (the background depends on it),
 then the bar and text size, then the default apps, and the font last. The
-font goes last because `omarchy-font-set` restarts the shell, and OmaKit
+font goes last because `omarchy-font-set` restarts the shell, and Quartermaster
 lives inside the shell: anything still queued there would die with it. For
 the same reason the runner is detached from the shell (`setsid -f`), and
 the screen closes before the commands run. The runner reports back with a
-desktop notification ("OmaKit deployed · 3 changes", or which command
+desktop notification ("Quartermaster deployed · 3 changes", or which command
 failed), a log in `~/.local/state/omarchy/loadout/deploy.log`, and a result
 file the next open folds into the status pill.
 
@@ -239,7 +239,7 @@ stays listed however its check answers.
 
 Two things it does not do. A widget's layout entry can carry settings (the
 clock's format strings, say); disabling drops the entry, settings and all,
-and re-enabling gets defaults. OmaKit warns on such a widget's item data
+and re-enabling gets defaults. Quartermaster warns on such a widget's item data
 but does not preserve the settings. And the spacer, which a bar may carry
 several of, is left out of the tiles: it stays wherever it is.
 

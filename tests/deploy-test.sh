@@ -1,5 +1,5 @@
 #!/bin/bash
-# deploy.sh is the only part of OmaKit that changes anything. It is handed a
+# deploy.sh is the only part of Quartermaster that changes anything. It is handed a
 # plan of argv arrays and runs them in the order given, so the things worth
 # pinning are that the order survives, that arguments with spaces in them
 # survive, and that what it reports back matches what actually happened.
@@ -92,11 +92,11 @@ jq -e '.at | type == "string" and length > 0' "$STATE/last-deploy.json" >/dev/nu
 grep -Fq 'omarchy-theme-set Nord' "$STATE/deploy.log" || fail "command missing from the log"
 equals "one notification" \
   "$(grep -c '^omarchy-notification-send' "$TRACE")" "1"
-grep -Fq 'OmaKit deployed · 2 changes' "$TRACE" || fail "wrong success notification"
+grep -Fq 'Quartermaster deployed · 2 changes' "$TRACE" || fail "wrong success notification"
 
 # One change is reported in the singular.
 run_plan '[["omarchy-theme-set","Nord"]]'
-grep -Fq 'OmaKit deployed · 1 change|' "$TRACE" || fail "singular not used for one change"
+grep -Fq 'Quartermaster deployed · 1 change|' "$TRACE" || fail "singular not used for one change"
 
 # --- failure ------------------------------------------------------------
 # A command that fails must not stop the ones after it: the fitting is what
@@ -109,7 +109,7 @@ equals "later commands still ran" "$(trace_names)" \
 equals "ok counts only successes" "$(jq -r '.ok'     "$STATE/last-deploy.json")" "2"
 equals "failure counted"          "$(jq -r '.failed' "$STATE/last-deploy.json")" "1"
 equals "failure named"            "$(jq -r '.names'  "$STATE/last-deploy.json")" "omarchy-bar"
-grep -Fq 'OmaKit: 1 failed · omarchy-bar' "$TRACE" || fail "wrong failure notification"
+grep -Fq 'Quartermaster: 1 failed · omarchy-bar' "$TRACE" || fail "wrong failure notification"
 grep -Fq 'FAILED' "$STATE/deploy.log" || fail "failure not recorded in the log"
 make_stub omarchy-bar 0
 

@@ -5,7 +5,7 @@
 #
 #   deploy.sh '<json array of argv arrays>'
 #
-# Detached because a font change restarts the shell, and OmaKit lives inside
+# Detached because a font change restarts the shell, and Quartermaster lives inside
 # the shell: anything still queued there would die with it.
 
 set -uo pipefail
@@ -60,7 +60,7 @@ jq -n --arg at "$(date -Is)" --argjson ok "$ok" --argjson failed "${#failed[@]}"
 
 if (( ${#failed[@]} == 0 )); then
   plural="s"; (( ok == 1 )) && plural=""
-  omarchy-notification-send -g 󰆓 "OmaKit deployed · $ok change$plural"
+  omarchy-notification-send -g 󰆓 "Quartermaster deployed · $ok change$plural"
 else
-  omarchy-notification-send -g 󰆓 "OmaKit: ${#failed[@]} failed · ${failed[*]}"
+  omarchy-notification-send -g 󰆓 "Quartermaster: ${#failed[@]} failed · ${failed[*]}"
 fi
