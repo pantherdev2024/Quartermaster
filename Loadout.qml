@@ -7,6 +7,7 @@ import Quickshell.Hyprland
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "BarLayout.js" as BarLayout
 
 // OmaKit — an RPG equip screen for Omarchy.
 //
@@ -128,43 +129,10 @@ Item {
   // every other slot. The cursor is separate: browsing this slot moves the
   // cursor and stages nothing; SPACE and SHIFT+arrows change the layout.
   property int modsCursor: 0
-  readonly property var sections: ["left", "center", "right"]
 
-  function decodeLayout(str) {
-    var out = { left: [], center: [], right: [] }
-    var parts = String(str || "").split("|")
-    for (var i = 0; i < parts.length; i++) {
-      var colon = parts[i].indexOf(":")
-      if (colon < 0) continue
-      var sec = parts[i].substring(0, colon)
-      var ids = parts[i].substring(colon + 1)
-      if (out[sec] === undefined) continue
-      out[sec] = ids ? ids.split(",") : []
-    }
-    return out
-  }
-  function encodeLayout(l) {
-    var parts = []
-    for (var i = 0; i < root.sections.length; i++) {
-      var sec = root.sections[i]
-      parts.push(sec + ":" + ((l && l[sec]) || []).join(","))
-    }
-    return parts.join("|")
-  }
-  function findInLayout(l, id) {
-    for (var i = 0; i < root.sections.length; i++) {
-      var idx = (l[root.sections[i]] || []).indexOf(id)
-      if (idx >= 0) return { section: root.sections[i], index: idx }
-    }
-    return null
-  }
-  function flattenLayout(l) {
-    return [].concat(l.left || [], l.center || [], l.right || [])
-  }
-
-  readonly property string liveLayoutString: root.encodeLayout((root.inventory && root.inventory.barLayout) || {})
+  readonly property string liveLayoutString: BarLayout.encodeLayout((root.inventory && root.inventory.barLayout) || {})
   readonly property string effectiveLayoutString: root.preview["barMods"] || root.staged["barMods"] || root.liveLayoutString
-  readonly property var previewBarLayout: root.decodeLayout(root.effectiveLayoutString)
+  readonly property var previewBarLayout: BarLayout.decodeLayout(root.effectiveLayoutString)
 
   // Widget glyphs, shared by the mock bar and the workbench tiles.
   readonly property var widgetGlyphs: ({
@@ -195,15 +163,11 @@ Item {
     for (var i = 0; i < widgets.length; i++) if (widgets[i].id === id) return widgets[i]
     return null
   }
-  function removeFromLayout(l, id) {
-    var at = root.findInLayout(l, id)
-    if (at) l[at.section].splice(at.index, 1)
-  }
   // Put a widget at `index` of `section`; -1 appends.
   function placeMod(id, section, index) {
     var l = root.previewBarLayout
     if (!l[section]) return
-    root.removeFromLayout(l, id)
+    BarLayout.removeFromLayout(l, id)
     var arr = l[section]
     var i = index < 0 ? arr.length : Math.max(0, Math.min(arr.length, index))
     arr.splice(i, 0, id)
@@ -211,55 +175,36 @@ Item {
   }
   function benchMod(id) {
     var l = root.previewBarLayout
-    if (!root.findInLayout(l, id)) return
-    root.removeFromLayout(l, id)
+    if (!BarLayout.findInLayout(l, id)) return
+    BarLayout.removeFromLayout(l, id)
     root.stageLayout(l, id)
   }
   function toggleModId(id) {
-    if (root.findInLayout(root.previewBarLayout, id)) { root.benchMod(id); return }
+    if (BarLayout.findInLayout(root.previewBarLayout, id)) { root.benchMod(id); return }
     var w = root.widgetById(id)
     root.placeMod(id, (w && w.defaultSection) || "center", -1)
   }
   // One place along the bar, crossing into the next section at either end.
   function nudgeMod(id, delta) {
     var l = root.previewBarLayout
-    var at = root.findInLayout(l, id)
+    var at = BarLayout.findInLayout(l, id)
     if (!at) return
     var arr = l[at.section]
-    var si = root.sections.indexOf(at.section)
+    var si = BarLayout.SECTIONS.indexOf(at.section)
     var ni = at.index + delta
     if (ni < 0) {
       if (si === 0) return
       arr.splice(at.index, 1)
-      l[root.sections[si - 1]].push(id)
+      l[BarLayout.SECTIONS[si - 1]].push(id)
     } else if (ni >= arr.length) {
-      if (si === root.sections.length - 1) return
+      if (si === BarLayout.SECTIONS.length - 1) return
       arr.splice(at.index, 1)
-      l[root.sections[si + 1]].unshift(id)
+      l[BarLayout.SECTIONS[si + 1]].unshift(id)
     } else {
       arr.splice(at.index, 1)
       arr.splice(ni, 0, id)
     }
     root.stageLayout(l, id)
-  }
-
-  // Widgets that sit somewhere else in the fitting than live: a different
-  // section, or both neighbours changed among the widgets common to both.
-  function movedIds(live, want) {
-    var liveIds = root.flattenLayout(live), wantIds = root.flattenLayout(want)
-    var shared = wantIds.filter(function(id) { return liveIds.indexOf(id) >= 0 })
-    var liveSeq = liveIds.filter(function(id) { return shared.indexOf(id) >= 0 })
-    var out = {}
-    for (var i = 0; i < shared.length; i++) {
-      var id = shared[i]
-      var a = root.findInLayout(live, id), b = root.findInLayout(want, id)
-      if (a.section !== b.section) { out[id] = true; continue }
-      var li = liveSeq.indexOf(id)
-      var predSame = (li > 0 ? liveSeq[li - 1] : "") === (i > 0 ? shared[i - 1] : "")
-      var succSame = (li < liveSeq.length - 1 ? liveSeq[li + 1] : "") === (i < shared.length - 1 ? shared[i + 1] : "")
-      if (!predSame && !succSame) out[id] = true
-    }
-    return out
   }
 
   // The slot's items: catalogue widgets in the fitting's bar order, then the
@@ -270,13 +215,13 @@ Item {
     if (widgets.length === 0) return []
     var byId = {}
     for (var i = 0; i < widgets.length; i++) byId[widgets[i].id] = widgets[i]
-    var live = root.decodeLayout(root.liveLayoutString)
-    var want = root.decodeLayout(layoutString)
-    var moved = root.movedIds(live, want)
+    var live = BarLayout.decodeLayout(root.liveLayoutString)
+    var want = BarLayout.decodeLayout(layoutString)
+    var moved = BarLayout.movedIds(live, want)
     var out = [], seen = {}
     function push(w, section, index, first) {
       var on = section !== ""
-      var liveOn = root.findInLayout(live, w.id) !== null
+      var liveOn = BarLayout.findInLayout(live, w.id) !== null
       out.push({
         id: w.id, name: w.name, short: w.short, category: w.category,
         description: w.description, defaultSection: w.defaultSection,
@@ -286,8 +231,8 @@ Item {
       })
       seen[w.id] = true
     }
-    for (var s = 0; s < root.sections.length; s++) {
-      var sec = root.sections[s], first = true
+    for (var s = 0; s < BarLayout.SECTIONS.length; s++) {
+      var sec = BarLayout.SECTIONS[s], first = true
       for (var j = 0; j < want[sec].length; j++) {
         var w = byId[want[sec][j]]
         if (!w) continue
@@ -302,7 +247,7 @@ Item {
   }
 
   function stageLayout(l, followId) {
-    root.previewItem(root.encodeLayout(l))
+    root.previewItem(BarLayout.encodeLayout(l))
     var items = root.itemsFor("barMods")
     for (var i = 0; i < items.length; i++) if (items[i].id === followId) { root.modsCursor = i; return }
   }
@@ -311,11 +256,11 @@ Item {
   // distributed, for the item data panel while the workbench is closed and
   // there is no single widget under the cursor to describe.
   readonly property string barModsBreakdown: {
-    var want = root.decodeLayout(root.effectiveLayoutString)
+    var want = BarLayout.decodeLayout(root.effectiveLayoutString)
     var total = ((root.inventory && root.inventory.barWidgets) || []).length
     var parts = [], on = 0
-    for (var i = 0; i < root.sections.length; i++) {
-      var sec = root.sections[i]
+    for (var i = 0; i < BarLayout.SECTIONS.length; i++) {
+      var sec = BarLayout.SECTIONS[i]
       var n = (want[sec] || []).filter(function(id) { return id !== "omarchy.spacer" }).length
       on += n
       parts.push(sec.toUpperCase() + " " + String(n).padStart(2, "0"))
@@ -327,54 +272,18 @@ Item {
 
   // "17 ON  +1  −2  ↔1": what the callout and item data say about the fitting.
   readonly property string barModsSummary: {
-    var live = root.decodeLayout(root.liveLayoutString)
-    var want = root.decodeLayout(root.effectiveLayoutString)
-    var liveIds = root.flattenLayout(live), wantIds = root.flattenLayout(want)
+    var live = BarLayout.decodeLayout(root.liveLayoutString)
+    var want = BarLayout.decodeLayout(root.effectiveLayoutString)
+    var liveIds = BarLayout.flattenLayout(live), wantIds = BarLayout.flattenLayout(want)
     var on = wantIds.filter(function(id) { return id !== "omarchy.spacer" }).length
     var added = wantIds.filter(function(id) { return liveIds.indexOf(id) < 0 }).length
     var removed = liveIds.filter(function(id) { return wantIds.indexOf(id) < 0 }).length
-    var moved = Object.keys(root.movedIds(live, want)).length
+    var moved = Object.keys(BarLayout.movedIds(live, want)).length
     var text = on + " ON"
     if (added) text += "  +" + added
     if (removed) text += "  −" + removed
     if (moved) text += "  ↔" + moved
     return text
-  }
-
-  // The command list that turns the live bar into `value`: disables first,
-  // then a left-to-right walk of the wanted layout that enables or moves
-  // whatever is not already in its final place. Indices are as the shell
-  // counts them: insert position after the source entry is removed.
-  function barModsCommands(value) {
-    var live = root.decodeLayout(root.liveLayoutString)
-    var want = root.decodeLayout(value)
-    var wantIds = root.flattenLayout(want)
-    var cmds = [], sim = {}
-    for (var s = 0; s < root.sections.length; s++) {
-      var sec = root.sections[s]
-      sim[sec] = []
-      for (var i = 0; i < live[sec].length; i++) {
-        var id = live[sec][i]
-        if (wantIds.indexOf(id) >= 0) sim[sec].push(id)
-        else cmds.push(["omarchy-plugin-disable", id])
-      }
-    }
-    for (var t = 0; t < root.sections.length; t++) {
-      var target = root.sections[t]
-      for (var j = 0; j < want[target].length; j++) {
-        var wid = want[target][j]
-        var at = root.findInLayout(sim, wid)
-        if (at && at.section === target && at.index === j) continue
-        if (!at) {
-          cmds.push(["omarchy-plugin-enable", wid, "--section", target, "--index", String(j)])
-        } else {
-          cmds.push(["omarchy-bar", "move", wid, "--section", target, "--index", String(j)])
-          sim[at.section].splice(at.index, 1)
-        }
-        sim[target].splice(j, 0, wid)
-      }
-    }
-    return cmds
   }
 
   // The fitting: fitted item per slot id. Empty means "unchanged from live".
@@ -860,7 +769,7 @@ Item {
       var def = defs[i]
       var value = root.staged[def.id]
       if (!def.apply || !value) continue
-      if (def.multi) cmds = cmds.concat(root.barModsCommands(value))
+      if (def.multi) cmds = cmds.concat(BarLayout.barModsCommands(root.liveLayoutString, value))
       else cmds.push(def.apply.concat([value]))
     }
     return cmds
