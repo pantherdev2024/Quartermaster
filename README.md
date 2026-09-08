@@ -160,6 +160,12 @@ repaints, scales its type, moves its bar, drops the bar fill, and mirrors the
 bar's widget layout — the type, the bar and its layout as you browse, the
 palette and the wallpaper once you fit them.
 
+![Style: theme, background, font and text size, with the fitted theme's palette under the cursor](screenshots/style.png)
+
+![Shell: bar position and surface, and the bar mods slot with its workbench button](screenshots/shell.png)
+
+![Cyberware: terminal, editor, browser and coding agent, each showing what is installed](screenshots/cyberware.png)
+
 ### Deploying
 
 `D` hands the fitting to `deploy.sh`, which runs one Omarchy command per
@@ -196,6 +202,8 @@ the stretch of rail it governs; under those, one **inventory** pane the rail's
 full width holding everything that is off; and at the foot, the item data
 panel for the tile under the cursor. Tiles shrink from 64px to a floor of 38
 until all of it fits the screen, so the workbench never scrolls.
+
+![The workbench: the rail across the top, the LEFT, CENTER and RIGHT bins beneath it, the inventory of benched widgets under those](screenshots/workbench.png)
 
 A vertical bar still draws as a horizontal rail. LEFT, CENTER and RIGHT are
 the bar's own section names rather than directions on the screen, so they keep
@@ -340,6 +348,7 @@ loadouts.sh        list / save / delete saved loadouts
 deploy.sh          runs a fitting's commands detached from the shell and reports back
 agent-set.sh       records the default agent without launching it
 preview.png        the marketplace card: the screen on a 1920x1080 monitor
+screenshots/       the three categories and the workbench, for this README
 LICENSE            MIT
 tests/run.sh       every test below, in order
 tests/*-test.sh    manifest, qmllint, the bar layout model, and the four scripts
