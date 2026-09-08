@@ -325,7 +325,8 @@ well as dark ones.
 
 ```
 manifest.json      overlay plugin declaration
-Loadout.qml        overlay entry: categories, slots, staging, loadouts, apply queue, layout
+Loadout.qml        overlay entry: categories, slots, staging, loadouts, apply queue
+BarLayout.js       the bar layout: its string form, the workbench's edits, the commands
 CharacterView.qml  the character: viewport, callouts, leader lines, nameplate
 LoadoutDock.qml    the row of saved-loadout cards across the top
 BarWorkbench.qml   the workbench: the bar as a rail, its sections as bins, an inventory
@@ -341,12 +342,14 @@ agent-set.sh       records the default agent without launching it
 preview.png        the marketplace card: the screen on a 1920x1080 monitor
 LICENSE            MIT
 tests/run.sh       every test below, in order
-tests/*-test.sh    manifest, qmllint, and the four scripts
+tests/*-test.sh    manifest, qmllint, the bar layout model, and the four scripts
 ```
 
-`tests/run.sh` needs nothing installed and changes nothing: each test builds a
-home and an Omarchy of its own under `mktemp -d`, and the two scripts that run
-commands are pointed at stubs that record what they were called with. The
-deploy test refuses outright to run a plan naming an absolute path outside its
-stub directory, because a plan is executed as written and one naming a real
-command would deploy it against the machine running the test.
+`tests/run.sh` needs nothing installed and changes nothing: every test that
+runs a script builds a home and an Omarchy of its own under `mktemp -d`, and
+the two scripts that run commands are pointed at stubs that record what they
+were called with. The bar layout model needs none of that, being plain
+JavaScript that touches nothing, and its suite is skipped where node is
+missing. The deploy test refuses outright to run a plan naming an absolute
+path outside its stub directory, because a plan is executed as written and one
+naming a real command would deploy it against the machine running the test.
