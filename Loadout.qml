@@ -163,48 +163,27 @@ Item {
     for (var i = 0; i < widgets.length; i++) if (widgets[i].id === id) return widgets[i]
     return null
   }
-  // Put a widget at `index` of `section`; -1 appends.
+  // The workbench's four edits. The model works out the new layout and
+  // answers null when there is nothing to do; all that is left here is
+  // staging it and keeping the cursor on the widget that moved.
   function placeMod(id, section, index) {
-    var l = root.previewBarLayout
-    if (!l[section]) return
-    BarLayout.removeFromLayout(l, id)
-    var arr = l[section]
-    var i = index < 0 ? arr.length : Math.max(0, Math.min(arr.length, index))
-    arr.splice(i, 0, id)
-    root.stageLayout(l, id)
+    var l = BarLayout.place(root.previewBarLayout, id, section, index)
+    if (l) root.stageLayout(l, id)
   }
   function benchMod(id) {
-    var l = root.previewBarLayout
-    if (!BarLayout.findInLayout(l, id)) return
-    BarLayout.removeFromLayout(l, id)
-    root.stageLayout(l, id)
+    var l = BarLayout.bench(root.previewBarLayout, id)
+    if (l) root.stageLayout(l, id)
   }
+  // The default section is the inventory's business, so it is looked up here
+  // and handed in rather than the model reaching for it.
   function toggleModId(id) {
-    if (BarLayout.findInLayout(root.previewBarLayout, id)) { root.benchMod(id); return }
     var w = root.widgetById(id)
-    root.placeMod(id, (w && w.defaultSection) || "center", -1)
+    var l = BarLayout.toggle(root.previewBarLayout, id, (w && w.defaultSection) || "center")
+    if (l) root.stageLayout(l, id)
   }
-  // One place along the bar, crossing into the next section at either end.
   function nudgeMod(id, delta) {
-    var l = root.previewBarLayout
-    var at = BarLayout.findInLayout(l, id)
-    if (!at) return
-    var arr = l[at.section]
-    var si = BarLayout.SECTIONS.indexOf(at.section)
-    var ni = at.index + delta
-    if (ni < 0) {
-      if (si === 0) return
-      arr.splice(at.index, 1)
-      l[BarLayout.SECTIONS[si - 1]].push(id)
-    } else if (ni >= arr.length) {
-      if (si === BarLayout.SECTIONS.length - 1) return
-      arr.splice(at.index, 1)
-      l[BarLayout.SECTIONS[si + 1]].unshift(id)
-    } else {
-      arr.splice(at.index, 1)
-      arr.splice(ni, 0, id)
-    }
-    root.stageLayout(l, id)
+    var l = BarLayout.nudge(root.previewBarLayout, id, delta)
+    if (l) root.stageLayout(l, id)
   }
 
   // The slot's items: catalogue widgets in the fitting's bar order, then the

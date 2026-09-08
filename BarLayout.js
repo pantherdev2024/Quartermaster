@@ -48,6 +48,70 @@ function removeFromLayout(l, id) {
   if (at) l[at.section].splice(at.index, 1)
 }
 
+// The four edits the workbench makes. Each takes a layout and returns a new
+// one, or null when the edit is a no-op, which is what tells the caller not
+// to stage anything. Returning a copy rather than mutating is what lets the
+// caller hand in the object from a property binding without having to know
+// whether that object is safe to write to.
+function cloneLayout(l) {
+  var out = {}
+  for (var i = 0; i < SECTIONS.length; i++) {
+    var sec = SECTIONS[i]
+    out[sec] = ((l && l[sec]) || []).slice()
+  }
+  return out
+}
+
+// Put a widget at `index` of `section`; -1 appends. The index is clamped
+// against the section as it stands once the widget has been lifted out of
+// wherever it was, which is the position a drag is aiming at.
+function place(layout, id, section, index) {
+  if (!layout || !layout[section]) return null
+  var next = cloneLayout(layout)
+  removeFromLayout(next, id)
+  var arr = next[section]
+  var i = index < 0 ? arr.length : Math.max(0, Math.min(arr.length, index))
+  arr.splice(i, 0, id)
+  return next
+}
+
+function bench(layout, id) {
+  if (!findInLayout(layout, id)) return null
+  var next = cloneLayout(layout)
+  removeFromLayout(next, id)
+  return next
+}
+
+// On the bar, take it off; off the bar, put it back where it belongs.
+function toggle(layout, id, defaultSection) {
+  if (findInLayout(layout, id)) return bench(layout, id)
+  return place(layout, id, defaultSection || "center", -1)
+}
+
+// One place along the bar, crossing into the next section at either end and
+// stopping at the two ends of the bar itself.
+function nudge(layout, id, delta) {
+  var at = findInLayout(layout, id)
+  if (!at) return null
+  var si = SECTIONS.indexOf(at.section)
+  var ni = at.index + delta
+  var next = cloneLayout(layout)
+  var arr = next[at.section]
+  if (ni < 0) {
+    if (si === 0) return null
+    arr.splice(at.index, 1)
+    next[SECTIONS[si - 1]].push(id)
+  } else if (ni >= arr.length) {
+    if (si === SECTIONS.length - 1) return null
+    arr.splice(at.index, 1)
+    next[SECTIONS[si + 1]].unshift(id)
+  } else {
+    arr.splice(at.index, 1)
+    arr.splice(ni, 0, id)
+  }
+  return next
+}
+
 // Widgets that sit somewhere else in the fitting than live: a different
 // section, or both neighbours changed among the widgets common to both.
 function movedIds(live, want) {
@@ -116,6 +180,10 @@ if (typeof module !== "undefined") {
     findInLayout: findInLayout,
     flattenLayout: flattenLayout,
     removeFromLayout: removeFromLayout,
+    place: place,
+    bench: bench,
+    toggle: toggle,
+    nudge: nudge,
     movedIds: movedIds,
     barModsCommands: barModsCommands
   }
