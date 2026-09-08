@@ -120,11 +120,19 @@ output instead, which is handy for scripting and screenshots:
 omarchy-shell shell toggle io.github.pantherdev2024.loadout '{"screen":"eDP-1"}'
 ```
 
-Three steps, on purpose. **Browsing previews**: the mini desktop repaints and
-nothing else moves; leave the slot without fitting and the preview snaps back.
-**ENTER fits**: the item locks into the slot and the fitting is what you are
-building, still touching nothing. **D deploys**: the fitting's commands run
-and the screen closes. Nothing on the real system changes before D.
+Three steps, on purpose. **Browsing previews**: the mini desktop repaints as
+you arrow along a row and nothing else moves; leave the slot without fitting
+and the preview snaps back. **ENTER fits**: the item locks into the slot and
+the fitting is what you are building, still touching nothing. **D deploys**:
+the fitting's commands run and the screen closes. Nothing on the real system
+changes before D.
+
+Theme and background are the exception: they repaint on the fit rather than on
+the browse. Arrowing along those two rows moves the cursor and names the item,
+and the mock desktop follows once you press `ENTER`, where every other row
+follows the cursor itself. Fitting is still free — it touches nothing real and
+`ESC` discards it — so trying a theme on and backing out costs a keypress
+rather than a change.
 
 ## Categories and slots
 
@@ -147,9 +155,10 @@ the top of the left column. The active pill spells out its name.
 
 Style is what the desktop wears — its palette, its wallpaper and its type,
 face and size together — Shell is the frame it hangs on, and Cyberware is the
-tooling wired into it. Style and Shell both preview live: the mini desktop
+tooling wired into it. Style and Shell both show on the mini desktop: it
 repaints, scales its type, moves its bar, drops the bar fill, and mirrors the
-bar's widget layout.
+bar's widget layout — the type, the bar and its layout as you browse, the
+palette and the wallpaper once you fit them.
 
 ### Deploying
 
@@ -249,8 +258,10 @@ The row across the top centre holds saved loadouts, one small card each with
 the loadout's theme as its thumbnail and the name you gave it. A loadout
 records the fitting as shown on screen as a map of slot id to item id in
 `~/.local/share/omarchy/loadouts/<id>.json`. Hovering a card, or moving onto
-it with the keyboard, previews it on the character; `ENTER` fits every slot
-it recorded that differs from what is live; `D` deploys. The card whose
+it with the keyboard, previews it on the character — its font, type size and
+bar at once, with its theme and wallpaper following on the fit the way those
+two slots do on their own; `ENTER` fits every slot it recorded that differs
+from what is live; `D` deploys. The card whose
 fitting the desktop is actually wearing is ringed. The nameplate under the
 character names the loadout it currently represents; a hand-picked change
 clears that until you save again.
