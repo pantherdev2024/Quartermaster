@@ -520,6 +520,18 @@ Item {
     return ""
   }
 
+  // Which slots the mock desktop follows on the cursor, and which only on the
+  // fit. stagedThemeObject and previewWallpaper above read root.staged and
+  // never root.preview, so browsing those two rows moves the cursor and
+  // repaints nothing -- and a callout claiming PREVIEW there would be naming
+  // something the screen is not showing. It says SELECTED instead: the item
+  // is picked, and the nameplate's ENTER FITS says how to see it. Make either
+  // of those two read root.preview and its id comes out of this list.
+  readonly property var showsOnFit: ["theme", "background"]
+  function previewTag(slotId) {
+    return root.showsOnFit.indexOf(String(slotId)) !== -1 ? "SELECTED" : "PREVIEW"
+  }
+
   readonly property string previewFont: root.selectedId("font", "monospace")
   readonly property string previewBarPosition: root.selectedId("barPosition", "top")
   readonly property bool previewBarTransparent: root.selectedId("barTransparent", "false") === "true"

@@ -221,7 +221,8 @@ Item {
       text: {
         if (!root.host) return ""
         var name = root.host.activeLoadoutName
-        var state = root.host.previewing ? "PREVIEW  ·  ENTER FITS"
+        var state = root.host.previewing
+          ? root.host.previewTag(root.host.previewSlot) + "  ·  ENTER FITS"
           : root.host.dirty ? "FITTED  ·  D DEPLOYS" : "EQUIPPED"
         if (name) return "LOADOUT  " + name.toUpperCase() + "  ·  " + state
         return root.host.previewing || root.host.dirty ? state : "CURRENT CONFIGURATION"
@@ -406,7 +407,8 @@ Item {
       && root.host.preview[def.id] !== (root.host.staged[def.id] || root.host.equippedId(def.id))
     // A multi slot is always worn: its value is the whole layout.
     readonly property bool multi: def.multi === true
-    readonly property string tag: previewed ? "PREVIEW" : staged ? "FITTED" : (multi || (item && item.equipped) ? "EQUIPPED" : (item ? "" : "EMPTY"))
+    readonly property string tag: previewed ? (root.host ? root.host.previewTag(def.id) : "PREVIEW")
+      : staged ? "FITTED" : (multi || (item && item.equipped) ? "EQUIPPED" : (item ? "" : "EMPTY"))
     readonly property color tagColor: previewed ? root.accent : staged ? root.warn : (multi || (item && item.equipped) ? root.good : root.muted)
     // No room for the tag word: compact, or a narrow card in the wide layout.
     readonly property bool tight: width < Style.space(170)

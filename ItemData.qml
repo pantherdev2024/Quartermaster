@@ -90,7 +90,8 @@ TechFrame {
 
       Text {
         anchors.right: parent.right
-        text: root.previewed ? "PREVIEW" : root.staged ? "FITTED"
+        text: root.previewed ? (root.host ? root.host.previewTag(root.slot.id) : "PREVIEW")
+          : root.staged ? "FITTED"
           : root.kind === "workbench" ? "LIVE"
           : (root.item && root.item.equipped ? "EQUIPPED" : "")
         color: root.previewed ? root.accent : root.staged ? root.warn : root.good
