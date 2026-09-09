@@ -721,7 +721,7 @@ Item {
   function dismiss() {
     root.close()
     if (root.shell && typeof root.shell.hide === "function")
-      root.shell.hide((root.manifest && root.manifest.id) || "io.github.pantherdev2024.loadout")
+      root.shell.hide((root.manifest && root.manifest.id) || "io.github.pantherdev2024.quartermaster")
   }
 
   function toggle() {

@@ -17,7 +17,7 @@ Adding shows you the code before anything runs, and a plugin lands disabled
 unless you pass `--enable`. Once it is on, the screen answers to the shell:
 
 ```sh
-omarchy-shell shell toggle io.github.pantherdev2024.loadout
+omarchy-shell shell toggle io.github.pantherdev2024.quartermaster
 ```
 
 That command is the whole interface. It is also the only way in a plugin can
@@ -27,14 +27,14 @@ two comfortable ways in are yours to add. Both are one line.
 A keybinding, in `~/.config/hypr/bindings.lua`:
 
 ```lua
-o.bind("SUPER + SHIFT + L", "Quartermaster", "omarchy-shell shell toggle io.github.pantherdev2024.loadout")
+o.bind("SUPER + SHIFT + L", "Quartermaster", "omarchy-shell shell toggle io.github.pantherdev2024.quartermaster")
 ```
 
 A row under **Style** in the Omarchy menu, in
 `~/.config/omarchy/extensions/omarchy-menu.jsonc`:
 
 ```jsonc
-"style.loadout": {"icon":"󰆓","label":"Quartermaster","aliases":["quartermaster","loadout","equip"],"description":"Equip themes, backgrounds and fonts with a live preview","action":"omarchy-shell shell toggle io.github.pantherdev2024.loadout"},
+"style.quartermaster": {"icon":"󰆓","label":"Quartermaster","aliases":["quartermaster","loadout","equip"],"description":"Equip themes, backgrounds and fonts with a live preview","action":"omarchy-shell shell toggle io.github.pantherdev2024.quartermaster"},
 ```
 
 ## What it needs and what it touches
@@ -78,7 +78,7 @@ read the code before you enable it.
 ## Remove
 
 ```sh
-omarchy plugin remove io.github.pantherdev2024.loadout
+omarchy plugin remove io.github.pantherdev2024.quartermaster
 ```
 
 That takes the plugin out of `~/.config/omarchy/plugins` and out of
@@ -117,7 +117,7 @@ The screen opens on Hyprland's focused monitor. A summon payload can name an
 output instead, which is handy for scripting and screenshots:
 
 ```
-omarchy-shell shell toggle io.github.pantherdev2024.loadout '{"screen":"eDP-1"}'
+omarchy-shell shell toggle io.github.pantherdev2024.quartermaster '{"screen":"eDP-1"}'
 ```
 
 Three steps, on purpose. **Browsing previews**: the mini desktop repaints as
