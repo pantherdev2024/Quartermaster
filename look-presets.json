@@ -1,0 +1,224 @@
+{
+  "gaps": [
+    {
+      "id": "tight",
+      "name": "Tight",
+      "meta": "0 / 0",
+      "set": {
+        "general": {
+          "gaps_in": 0,
+          "gaps_out": 0
+        }
+      },
+      "short": "0·0"
+    },
+    {
+      "id": "stock",
+      "name": "Stock",
+      "meta": "5 / 10 · Omarchy default",
+      "stock": true,
+      "set": {
+        "general": {
+          "gaps_in": 5,
+          "gaps_out": 10
+        }
+      },
+      "short": "5·10"
+    },
+    {
+      "id": "airy",
+      "name": "Airy",
+      "meta": "10 / 20",
+      "set": {
+        "general": {
+          "gaps_in": 10,
+          "gaps_out": 20
+        }
+      },
+      "short": "10·20"
+    },
+    {
+      "id": "loose",
+      "name": "Loose",
+      "meta": "16 / 32",
+      "set": {
+        "general": {
+          "gaps_in": 16,
+          "gaps_out": 32
+        }
+      },
+      "short": "16·32"
+    }
+  ],
+  "border": [
+    {
+      "id": "none",
+      "name": "None",
+      "meta": "0 px",
+      "set": {
+        "general": {
+          "border_size": 0
+        }
+      },
+      "short": "0"
+    },
+    {
+      "id": "hairline",
+      "name": "Hairline",
+      "meta": "1 px",
+      "set": {
+        "general": {
+          "border_size": 1
+        }
+      },
+      "short": "1"
+    },
+    {
+      "id": "stock",
+      "name": "Stock",
+      "meta": "2 px · Omarchy default",
+      "stock": true,
+      "set": {
+        "general": {
+          "border_size": 2
+        }
+      },
+      "short": "2"
+    },
+    {
+      "id": "heavy",
+      "name": "Heavy",
+      "meta": "4 px",
+      "set": {
+        "general": {
+          "border_size": 4
+        }
+      },
+      "short": "4"
+    }
+  ],
+  "corners": [
+    {
+      "id": "square",
+      "name": "Square",
+      "meta": "0 px · Omarchy default",
+      "stock": true,
+      "set": {
+        "decoration": {
+          "rounding": 0
+        }
+      },
+      "short": "0"
+    },
+    {
+      "id": "soft",
+      "name": "Soft",
+      "meta": "6 px",
+      "set": {
+        "decoration": {
+          "rounding": 6
+        }
+      },
+      "short": "6"
+    },
+    {
+      "id": "round",
+      "name": "Round",
+      "meta": "12 px",
+      "set": {
+        "decoration": {
+          "rounding": 12
+        }
+      },
+      "short": "12"
+    },
+    {
+      "id": "pill",
+      "name": "Pill",
+      "meta": "20 px",
+      "set": {
+        "decoration": {
+          "rounding": 20
+        }
+      },
+      "short": "20"
+    }
+  ],
+  "blur": [
+    {
+      "id": "off",
+      "name": "Off",
+      "meta": "Omarchy default",
+      "stock": true,
+      "set": {
+        "decoration": {
+          "blur": {
+            "enabled": false
+          }
+        }
+      },
+      "short": "OFF"
+    },
+    {
+      "id": "light",
+      "name": "Light",
+      "meta": "size 4 · 1 pass",
+      "set": {
+        "decoration": {
+          "blur": {
+            "enabled": true,
+            "size": 4,
+            "passes": 1
+          }
+        }
+      },
+      "short": "LOW"
+    },
+    {
+      "id": "heavy",
+      "name": "Heavy",
+      "meta": "size 8 · 3 passes",
+      "set": {
+        "decoration": {
+          "blur": {
+            "enabled": true,
+            "size": 8,
+            "passes": 3
+          }
+        }
+      },
+      "short": "HIGH"
+    }
+  ],
+  "shadow": [
+    {
+      "id": "off",
+      "name": "Off",
+      "meta": "Omarchy default",
+      "stock": true,
+      "set": {
+        "decoration": {
+          "shadow": {
+            "enabled": false
+          }
+        }
+      },
+      "short": "OFF"
+    },
+    {
+      "id": "on",
+      "name": "On",
+      "meta": "range 12 · falloff 3",
+      "set": {
+        "decoration": {
+          "shadow": {
+            "enabled": true,
+            "range": 12,
+            "render_power": 3
+          }
+        }
+      },
+      "short": "ON"
+    }
+  ]
+}

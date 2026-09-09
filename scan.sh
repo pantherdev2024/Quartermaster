@@ -239,6 +239,53 @@ emit_text_sizes() {
   done | emit_rows "$current"
 }
 
+# ---- Look: Hyprland's own look and feel ----------------------------------
+# What Hyprland is actually running, asked over hyprctl, in the same nested
+# shape as the preset tables in look-presets.json, so a preset is "equipped"
+# when every leaf it sets equals the live value. Gaps come back as a CSS
+# shorthand ("5 5 5 5"); the first number is the one the presets set.
+emit_look_live() {
+  command -v hyprctl >/dev/null 2>&1 || { echo null; return; }
+  local keys="general:gaps_in general:gaps_out general:border_size decoration:rounding \
+    decoration:blur:enabled decoration:blur:size decoration:blur:passes \
+    decoration:shadow:enabled decoration:shadow:range decoration:shadow:render_power"
+  local batch="" k raw
+  for k in $keys; do batch+="${batch:+ ; }getoption $k"; done
+  raw="$(hyprctl -j --batch "$batch" 2>/dev/null || true)"
+  [[ -n $raw ]] || { echo null; return; }
+  jq -s <<<"$raw" '
+    def value: if has("int") then .int elif has("float") then .float elif has("bool") then .bool
+      elif has("css") then (.css | split(" ")[0] | tonumber) elif has("str") then .str else null end;
+    if length == 0 then null else
+      reduce (.[] | select(type == "object" and has("option"))) as $o ({};
+        setpath($o.option | split(":"); $o | value))
+    end' 2>/dev/null || echo null
+}
+
+# The look slots: every preset from the table, marked equipped where it
+# matches what is live. When nothing matches, the live values themselves
+# appear as a Custom item, equipped, so a hand-tuned looknfeel.lua is shown
+# for what it is rather than mislabelled as the nearest preset.
+emit_look() {
+  local live="$1"
+  jq -c --argjson live "$live" '
+    def leaves: [paths(scalars) as $p | {path: $p, value: getpath($p)}];
+    def matches($set): $live != null and all($set | leaves[]; . as $l | ($live | getpath($l.path)) == $l.value);
+    def summary($set): [$set | leaves[] | .value | if . == true then "on" elif . == false then "off" else tostring end] | join(" / ");
+    to_entries | map(
+      .value as $presets
+      | ($presets | map(. + {equipped: matches(.set)})) as $items
+      | ($presets | map(.set) | reduce .[] as $s ({}; . * $s) | leaves | map(.path)) as $paths
+      | {key: .key,
+         value: (if ($items | any(.equipped)) or $live == null then $items
+                 else $items + [{id: "custom", name: "Custom", short: "CUST", custom: true, equipped: true,
+                                 set: (reduce $paths[] as $p ({}; setpath($p; $live | getpath($p)))),
+                                 meta: ""}]
+                 end
+                 | map(if .custom then .meta = "as configured · " + summary(.set) else . end))}
+    ) | from_entries' "$here/look-presets.json"
+}
+
 # ---- Outfit -------------------------------------------------------------
 
 emit_fonts() {
@@ -250,9 +297,12 @@ emit_fonts() {
 }
 
 here="$(dirname "$(readlink -f "$0")")"
+look_live="$(emit_look_live)"
 
 jq -n \
   --argjson themes "$(emit_themes)" \
+  --argjson look "$(emit_look "$look_live")" \
+  --argjson lookLive "$look_live" \
   --argjson loadouts "$("$here/loadouts.sh" list)" \
   --argjson fonts "$(emit_fonts)" \
   --argjson terminals "$(emit_terminals)" \
@@ -270,4 +320,4 @@ jq -n \
     browsers:$browsers, agents:$agents, barPositions:$barPositions,
     barTransparency:$barTransparency, textSizes:$textSizes,
     barWidgets:$barWidgets, barLayout:$barLayout, lastDeploy:$lastDeploy,
-    currentBackground:$currentBackground}'
+    look:$look, lookLive:$lookLive, currentBackground:$currentBackground}'

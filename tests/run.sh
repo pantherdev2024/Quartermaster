@@ -11,5 +11,6 @@ ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 "$ROOT/barlayout-test.sh"
 "$ROOT/loadouts-test.sh"
 "$ROOT/agent-set-test.sh"
+"$ROOT/look-test.sh"
 "$ROOT/scan-test.sh"
 "$ROOT/deploy-test.sh"

@@ -55,6 +55,22 @@ JSON
 mkdir -p "$TMP/bin"
 stub() { printf '#!/bin/bash\n%s\n' "$2" > "$TMP/bin/$1"; chmod +x "$TMP/bin/$1"; }
 stub omarchy-theme-current      'echo "Shared"'
+# hyprctl answers a batched getoption with one JSON object per option, blank
+# lines between, whatever the batch asked for; the values come from a file so
+# a test can move them.
+cat > "$TMP/hypr-values" <<'JSON'
+{"general:gaps_in": {"option":"general:gaps_in","css":"5 5 5 5","set":true},
+ "general:gaps_out": {"option":"general:gaps_out","css":"10 10 10 10","set":true},
+ "general:border_size": {"option":"general:border_size","int":2,"set":true},
+ "decoration:rounding": {"option":"decoration:rounding","int":12,"set":true},
+ "decoration:blur:enabled": {"option":"decoration:blur:enabled","bool":false,"set":true},
+ "decoration:blur:size": {"option":"decoration:blur:size","int":8,"set":false},
+ "decoration:blur:passes": {"option":"decoration:blur:passes","int":1,"set":false},
+ "decoration:shadow:enabled": {"option":"decoration:shadow:enabled","bool":false,"set":true},
+ "decoration:shadow:range": {"option":"decoration:shadow:range","int":4,"set":false},
+ "decoration:shadow:render_power": {"option":"decoration:shadow:render_power","int":3,"set":false}}
+JSON
+stub hyprctl "jq -c 'to_entries[] | .value' '$TMP/hypr-values' | sed 's/\$/\n/'"
 stub omarchy-font-current       'echo "CaskaydiaMono Nerd Font"'
 stub omarchy-font-list          'printf "CaskaydiaMono Nerd Font\nJetBrainsMono Nerd Font\n"'
 stub omarchy-display-text-size  'echo "text size: 14 (default) px"'
@@ -82,7 +98,7 @@ jq -e . "$OUT" >/dev/null || fail "scan.sh did not emit valid JSON"
 # --- the shape the QML reads --------------------------------------------
 for key in themes loadouts fonts terminals editors browsers agents \
            barPositions barTransparency textSizes barWidgets barLayout \
-           lastDeploy currentBackground; do
+           lastDeploy currentBackground look lookLive; do
   jq -e --arg k "$key" 'has($k)' "$OUT" >/dev/null || fail "missing top-level key: $key"
 done
 
@@ -137,6 +153,32 @@ equals "an unplaced widget has no section" \
 equals "raw layout keeps the spacer" \
   "$(jq -rc '.barLayout.center' "$OUT")" '["omarchy.spacer","omarchy.benched-service"]'
 
+# --- look: presets matched against what Hyprland reports -------------------
+equals "look slots" "$(jq -r '.look | keys | join(",")' "$OUT")" "blur,border,corners,gaps,shadow"
+equals "live gaps read from the css shorthand" "$(jq -c '.lookLive.general' "$OUT")" \
+  '{"gaps_in":5,"gaps_out":10,"border_size":2}'
+equals "stock gaps equipped" "$(jq -r '.look.gaps[] | select(.equipped) | .id' "$OUT")" "stock"
+equals "round corners equipped" "$(jq -r '.look.corners[] | select(.equipped) | .id' "$OUT")" "round"
+equals "blur off equipped" "$(jq -r '.look.blur[] | select(.equipped) | .id' "$OUT")" "off"
+equals "no custom item when a preset matches" "$(jq '[.look[][] | select(.custom)] | length' "$OUT")" "0"
+# Every item carries the values it sets, so the mock desktop can paint them.
+jq -e '.look.gaps[] | select(.id == "loose") | .set.general.gaps_out == 32' "$OUT" >/dev/null \
+  || fail "preset items should carry their set tables"
+
+# Values no preset produces: the live ones become a Custom item, and only
+# for the slot they belong to.
+jq '.["general:gaps_in"].css = "7 7 7 7" | .["general:gaps_out"].css = "14 14 14 14"' \
+  "$TMP/hypr-values" > "$TMP/hv2" && mv "$TMP/hv2" "$TMP/hypr-values"
+"$ROOT/scan.sh" > "$TMP/custom.json" || fail "scan.sh failed with custom gaps"
+equals "custom gaps equipped" "$(jq -r '.look.gaps[] | select(.equipped) | .id' "$TMP/custom.json")" "custom"
+equals "custom carries the live values" "$(jq -c '.look.gaps[] | select(.custom) | .set' "$TMP/custom.json")" \
+  '{"general":{"gaps_in":7,"gaps_out":14}}'
+equals "custom says what it is" "$(jq -r '.look.gaps[] | select(.custom) | .meta' "$TMP/custom.json")" \
+  "as configured · 7 / 14"
+equals "other slots untouched by custom gaps" "$(jq '[.look[][] | select(.custom)] | length' "$TMP/custom.json")" "1"
+equals "preset list keeps its order" "$(jq -r '.look.gaps | map(.id) | join(",")' "$TMP/custom.json")" \
+  "tight,stock,airy,loose,custom"
+
 # --- an empty machine ----------------------------------------------------
 # No themes, no shell.json, no state: the screen must still open, so every
 # key has to be present and every list an array rather than null.
@@ -148,6 +190,13 @@ for key in themes loadouts fonts barWidgets barPositions; do
     || fail "$key was not an array on an empty machine"
 done
 equals "no themes to offer" "$(jq '.themes | length' "$TMP/empty.json")" "0"
+# hyprctl with no compositor to talk to: the look slots still list their
+# presets, nothing is equipped and nothing is invented.
+stub hyprctl 'echo "Couldn'"'"'t connect to Hyprland" >&2; exit 1'
+"$ROOT/scan.sh" > "$TMP/nohypr.json" || fail "scan.sh failed when hyprctl could not connect"
+equals "lookLive is null when hyprctl fails" "$(jq -c '.lookLive' "$TMP/nohypr.json")" "null"
+equals "presets still listed when hyprctl fails" "$(jq '.look.gaps | length' "$TMP/nohypr.json")" "4"
+equals "nothing equipped when hyprctl fails" "$(jq '[.look[][] | select(.equipped)] | length' "$TMP/nohypr.json")" "0"
 equals "bar position falls back to top" \
   "$(jq -r '.barPositions[] | select(.equipped) | .id' "$TMP/empty.json")" "top"
 
