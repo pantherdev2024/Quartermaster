@@ -1,9 +1,10 @@
 # Quartermaster
 
-An RPG equip screen for Omarchy. Slot in themes, backgrounds, fonts and
-defaults, watch a miniature desktop re-fit itself as you browse, fit what you
-like, then deploy the whole fitting for real. Save a fitting as a loadout and
-swap between them in one move.
+An RPG equip screen for Omarchy. Slot in themes, backgrounds, fonts, default
+apps, the bar and Hyprland's own look — gaps, borders, corners, blur, shadow —
+watch a miniature desktop re-fit itself as you browse, fit what you like, then
+deploy the whole fitting for real. Save a fitting as a loadout and swap
+between them in one move.
 
 ![The Quartermaster equip screen, with the Style category open](preview.png)
 
@@ -54,7 +55,9 @@ the ordinary Omarchy commands, the same ones the Omarchy menu runs:
 `omarchy plugin enable` / `disable`, `omarchy bar move`, and
 `omarchy-default-terminal` / `-editor` / `-browser`. Each is handed its
 arguments as a list rather than a shell string, and every value in that list is
-an id the inventory itself produced.
+an id the inventory itself produced. The five Hyprland look slots run the
+plugin's own `look-set.sh`, described under Hyprland look below; it writes one
+file under `~/.local/state` and runs `hyprctl reload`.
 
 Opening the screen only reads: those same commands with no argument, plus
 `omarchy-plugin-catalog`, `~/.config/omarchy/shell.json`, the two theme
@@ -63,11 +66,13 @@ ships an `omarchy-installed-service-*` check, that runs too, under a two second
 timeout — which is what keeps a widget with nothing behind it out of the
 catalogue.
 
-Quartermaster writes in three places of its own: saved loadouts under
-`~/.local/share/omarchy/loadouts/`, a log and the last deploy's result under
-`~/.local/state/omarchy/loadout/`, and the default agent in
-`~/.config/omarchy/defaults/agent`, written directly for the reason given
-under Categories and slots.
+Quartermaster writes in four places of its own: saved loadouts under
+`~/.local/share/omarchy/loadouts/`, a log, the last deploy's result and the
+chosen look presets under `~/.local/state/omarchy/loadout/`, the rendered look
+file `~/.local/state/omarchy/toggles/hypr/quartermaster-look.lua`, and the
+default agent in `~/.config/omarchy/defaults/agent`, written directly for the
+reason given under Categories and slots. Nothing under `~/.config/hypr` is
+ever touched.
 
 None of this asks for root: no sudo or pkexec is used anywhere in the plugin,
 and Omarchy's installer never runs plugin code. What is true of every
@@ -95,7 +100,15 @@ Two directories are yours rather than the plugin's, so they are left where
 they are and a reinstall finds your loadouts again:
 
 - `~/.local/share/omarchy/loadouts/` — one JSON file per saved loadout
-- `~/.local/state/omarchy/loadout/` — the deploy log and the last result
+- `~/.local/state/omarchy/loadout/` — the deploy log, the last result and the
+  chosen look presets
+
+One file keeps working after removal, on purpose: a deployed Hyprland look
+lives in `~/.local/state/omarchy/toggles/hypr/quartermaster-look.lua`, which
+Omarchy loads on its own, so the gaps or corners you deployed stay exactly as
+deployed, the way a theme you deployed does. Fit every look slot back to stock
+before removing, or delete that one file afterwards, and Hyprland is back to
+your `looknfeel.lua` alone.
 
 Delete those by hand if you want them gone, and take the binding and the menu
 row back out of your own config.
@@ -105,10 +118,11 @@ row back out of your own config.
 - Summon it with the command above, or with whichever of the binding and the
   menu row you set up
 - It opens on the boot screen: the character on a card to the left, the
-  saved loadouts as a grid to the right. `← → ↑ ↓` move between them;
-  `ENTER` on the card continues to the equip screen, `ENTER` on a loadout
-  fits every slot it recorded and continues wearing it, and `X` (or the
-  cross on a card) deletes one, after asking
+  saved loadouts as a grid to the right. `← → ↑ ↓` move between them.
+  `ENTER` on the card continues to the equip screen. On a loadout, `ENTER`
+  fits every slot it recorded and stays, so `D` deploys it from right there;
+  `E` (or EDIT on the tile) fits it and continues to the equip screen to
+  change it; `X` (or the cross) deletes it, after asking
 - `TAB` / `SHIFT+TAB` (or `1` `2` `3`) switch equipment category
 - `↑ ↓` move between slots, `← →` browse that slot's inventory
 - BAR MODS has no inventory to browse: `← →` do nothing there and `ENTER`
@@ -118,7 +132,11 @@ row back out of your own config.
   screen; clicking the pill in the top corner does the same
 - `ESC` steps back from the equip screen to the boot screen and closes from
   there; if anything is fitted but not deployed it asks first
-- `S` saves the fitting on screen as a loadout
+- `S` saves the fitting on screen as a loadout: a chooser offers the saved
+  loadouts to save over, with the one the fitting came from first, and NEW
+  at its head for a fresh name. Nothing is saved under a new name unasked
+
+![The boot screen: the character card on the left, the saved loadouts as a grid on the right](screenshots/boot.png)
 
 The screen opens on Hyprland's focused monitor. A summon payload can name an
 output instead, which is handy for scripting and screenshots:
@@ -155,6 +173,11 @@ the top of the left column. The active pill spells out its name.
 | **Shell** | Bar position | top / bottom / left / right | `omarchy-bar position` |
 | | Bar surface | solid / transparent | `omarchy-bar transparent` |
 | | Bar mods | every usable `bar-widget` plugin in the catalogue | `omarchy plugin enable` / `disable`, `omarchy bar move` |
+| | Gaps | tight / stock / airy / loose | `look-set.sh gaps` |
+| | Border | none / hairline / stock / heavy | `look-set.sh border` |
+| | Corners | square / soft / round / pill | `look-set.sh corners` |
+| | Blur | off / light / heavy | `look-set.sh blur` |
+| | Shadow | off / on | `look-set.sh shadow` |
 | **Cyberware** | Terminal | installed alacritty / foot / ghostty / kitty | `omarchy-default-terminal` |
 | | Editor | installed editors `omarchy default editor` knows | `omarchy-default-editor` |
 | | Browser | installed browsers `omarchy default browser` knows | `omarchy-default-browser` |
@@ -162,22 +185,49 @@ the top of the left column. The active pill spells out its name.
 
 Style is what the desktop wears — its palette, its wallpaper and its type,
 face and size together — Shell is the frame it hangs on, and Cyberware is the
-tooling wired into it. Style and Shell both show on the mini desktop: it
-repaints, scales its type, moves its bar, drops the bar fill, and mirrors the
-bar's widget layout — the type, the bar and its layout as you browse, the
-palette and the wallpaper once you fit them.
+tooling wired into it. All three show on the mini desktop: it repaints, scales
+its type, moves its bar, drops the bar fill, mirrors the bar's widget layout,
+spaces and rounds and borders its windows the way Hyprland would, and names
+the fitted terminal, editor, browser and agent in its windows — everything as
+you browse, except the palette and the wallpaper, which follow once you fit
+them.
+
+### Hyprland look
+
+Gaps, border, corners, blur and shadow are Hyprland settings, and Omarchy has
+no command that sets them, so these five slots come with their own apply
+script. Every value they can set lives in `look-presets.json`; the slot and
+the preset are looked up there and rejected if absent, and nothing else is
+ever written. Deploying one records the choice in
+`~/.local/state/omarchy/loadout/look.json` and renders the whole record as one
+`hl.config` call into `~/.local/state/omarchy/toggles/hypr/quartermaster-look.lua`,
+which Omarchy itself loads after your `~/.config/hypr/looknfeel.lua` (that
+directory is Omarchy's own drop-in for permanent flags). Then `hyprctl reload`,
+then `hyprctl configerrors`: an error that was not there before the write
+means the file is withdrawn, the previous one restored and Hyprland reloaded
+again, so a bad render cannot leave the desktop in a broken state.
+
+A slot fitted with its stock preset is left out of the file, so your own
+looknfeel.lua keeps the last word there, and fitting every look slot back to
+stock removes the file. Delete that one file and Hyprland is back to your
+config alone. The slots read what Hyprland is actually running over
+`hyprctl getoption`; when it matches no preset, a Custom item shows the live
+values as equipped rather than mislabelling them as the nearest preset. Blur
+only shows on windows that let something through, which stock Omarchy
+windows barely do.
 
 ![Style: theme, background, font and text size, with the fitted theme's palette under the cursor](screenshots/style.png)
 
-![Shell: bar position and surface, and the bar mods slot with its workbench button](screenshots/shell.png)
+![Shell: bar position, surface and mods, then Hyprland's gaps, border, corners, blur and shadow as preset rows](screenshots/shell.png)
 
 ![Cyberware: terminal, editor, browser and coding agent, each showing what is installed](screenshots/cyberware.png)
 
 ### Deploying
 
-`D` hands the fitting to `deploy.sh`, which runs one Omarchy command per
-fitted slot, in a fixed order: theme first (the background depends on it),
-then the bar and text size, then the default apps, and the font last. The
+`D` hands the fitting to `deploy.sh`, which runs one command per fitted
+slot, in a fixed order: theme first (the background depends on it), then the
+Hyprland look, the bar and text size, then the default apps, and the font
+last. The
 font goes last because `omarchy-font-set` restarts the shell, and Quartermaster
 lives inside the shell: anything still queued there would die with it. For
 the same reason the runner is detached from the shell (`setsid -f`), and
@@ -198,8 +248,8 @@ the item data panel describes the slot rather than a widget: how the fitting
 is spread across the bar and the bench.
 
 `ENTER` on the slot, or a click on the button, opens the **workbench**, which
-takes the whole screen: bar mods edits the whole bar, so the slot column, the
-character and the saved-loadouts row stand down while it is open. It is laid
+takes the whole screen: bar mods edits the whole bar, so the slot column and
+the character stand down while it is open. It is laid
 out in the shape of the thing it edits. Across the top is the **rail** — the
 fitting drawn as a bar, in the previewed theme, tagged with the edge the bar
 is really on and whether it is solid; a clear bar lets the previewed wallpaper
@@ -265,7 +315,7 @@ in a terminal, which is not what "apply" should do from an equip screen.
 Adding a slot means adding one entry to `slotDefs` in `Loadout.qml` (with its
 category, glyph and apply-command prefix) and a matching branch in
 `itemsFor()`. The fitted item id is appended to the prefix as the final
-argument. New slots appear in the character view's callouts automatically.
+argument. New slots appear in the character view's tags automatically.
 
 ## Loadouts
 
@@ -275,38 +325,46 @@ it. A loadout records the fitting as shown on
 screen as a map of slot id to item id in
 `~/.local/share/omarchy/loadouts/<id>.json`. Taking a card, with `ENTER` or
 a click, fits every slot it recorded that differs from what is live and
-continues to the equip screen wearing it, so the character shows the whole
-fitting — theme, wallpaper, font, type size and bar — and `D` deploys. The
-card whose fitting the desktop is actually wearing is ringed. The nameplate
-under the character, like the boot screen's card, names the loadout the
-fitting currently represents; a hand-picked change clears that until you
-save again.
+stays on the boot screen: the character card reads FITTED, and `D` deploys
+the whole fitting — theme, wallpaper, font, type size, bar and look — from
+there. `E`, or EDIT on the tile, fits it and continues to the equip screen
+instead, to change it; saving then offers that loadout first, so an edit
+goes back where it came from with `S` and `ENTER`, and a new loadout is only
+ever written when you pick NEW and give it a name. The card whose fitting
+the desktop is actually wearing is ringed. The nameplate above the
+character, like the boot screen's card, names the loadout the fitting
+currently represents; a hand-picked change clears that until you save
+again.
 
 ## How it works
 
 `scan.sh` emits the whole inventory as one JSON document: themes with their
 parsed `colors.toml` palettes, preview images and wallpapers, the installed
-tools each default slot can take, the shell options, and the saved loadouts
-from `loadouts.sh list`.
+tools each default slot can take, the shell options, the look presets marked
+against what Hyprland reports over `hyprctl getoption`, and the saved
+loadouts from `loadouts.sh list`.
 
 The centre of the character view is a *mock* desktop, not a screen capture. A
 capture can only show what is already applied, and this overlay covers the
 screen anyway. Mocking it is what makes previewing an unapplied fitting
-possible: it moves its bar, drops the bar fill, scales its type and repaints
-in the previewed palette. Around it, one callout per slot names what is worn,
-previewed or fitted, tethered by a leader line that turns accent under the cursor and the
-warning colour when fitted.
+possible: it tiles three windows the way Hyprland's dwindle layout would,
+spaced, bordered and rounded by the fitted look, moves its bar, drops the bar
+fill, scales its type and repaints in the previewed palette. Around it, one
+tag per slot names what is worn, and says PREVIEW or FITTED when that is the
+case; equipped is the quiet default. The tags hang off one hairline rail per
+column, nothing is drawn between a tag and the desktop, and the tag the
+cursor is on turns its stretch of rail to the accent: the desktop itself is
+what shows the change.
 
 Every frame is a `TechFrame`: a chamfered outline with an optional heavy edge
 and corner brackets, drawn on a Canvas so it recolours with the theme.
 
-The callouts flank the viewport on every screen that can hold them. Whether a
-screen can is worked out rather than assumed: flanking costs the viewport's
-share of the width plus, on each side, a gutter and a card at its floor, so a
-1280-wide laptop panel flanks and a roomier spacing scale falls back on its own
-to a stack, a three-column grid under the viewport with each card tethered to
-the one above it. A card narrower than about 170 px drops the tag word for a
-small state square.
+The tags flank the viewport on every screen that can hold them, and the
+viewport is what gives way: flanking costs, on each side, a gutter and a tag
+at its floor, and the viewport takes what is left, so a 1280-wide laptop
+panel still shows the character surrounded by its tags, only smaller. Only a
+pane too narrow to leave a viewport worth the name falls back to a stack, a
+grid of up to five columns under the viewport.
 
 The layout is built to take more slots than it has. Style keeps the left,
 Cyberware the right and Shell the foot, because that grouping is the point, but
@@ -317,11 +375,12 @@ wider than the viewport's channel it starts below the side columns rather than
 beside them. The whole arrangement is centred on the union of the stack and the
 columns, so a tall column pushes it down instead of off the top.
 
-On the left, the item data panel is the first thing to go when the column is
-short: every slot shows before any description does. The inventory cells then
-shrink until the tallest category fits its column together with the item data
-panel, so no screen has to scroll a slot list; scrolling remains only as a
-last resort.
+On the left, every slot is one row, its name and count in a block before its
+cells, so a category of eight costs no more height than its cells. The item
+data panel is the first thing to go when the column is short: every slot
+shows before any description does. The cells then shrink until the tallest
+category fits its column together with the item data panel, so no screen has
+to scroll a slot list; scrolling remains only as a last resort.
 
 ## Notes
 
@@ -344,30 +403,33 @@ well as dark ones.
 manifest.json      overlay plugin declaration
 Loadout.qml        overlay entry: categories, slots, staging, loadouts, apply queue
 BarLayout.js       the bar layout: its string form, the workbench's edits, the commands
-CharacterView.qml  the character: viewport, callouts, leader lines, nameplate
+CharacterView.qml  the character: viewport, tags on their rails, nameplate
 BootScreen.qml     the boot screen: the character card and the loadout grid
 LoadoutGrid.qml    the saved loadouts as a grid, three to a row
 BarWorkbench.qml   the workbench: the bar as a rail, its sections as bins, an inventory
 BarRail.qml        a bar's widget tokens, drawn for the mock desktop and the rail
 MiniDesktop.qml    the miniature mock desktop
-SlotPanel.qml      one equipment slot + its inventory row, or its workbench button
+SlotPanel.qml      one equipment slot as a row: name block and inventory cells, or the workbench button
 ItemData.qml       description panel for whatever the cursor is on
 TechFrame.qml      chamfered frame with heavy edge and corner brackets
 scan.sh            inventory as JSON (widgets and bar layout included)
-loadouts.sh        list / save / delete saved loadouts
+loadouts.sh        list / save (new, or over an existing id) / delete saved loadouts
 deploy.sh          runs a fitting's commands detached from the shell and reports back
 agent-set.sh       records the default agent without launching it
+look-set.sh        renders the chosen look presets into Omarchy's toggles drop-in and reloads Hyprland
+look-presets.json  every value the look slots can set
 preview.png        the marketplace card: the screen on a 1920x1080 monitor
-screenshots/       the three categories and the workbench, for this README
+screenshots/       the boot screen, the three categories and the workbench, for this README
 LICENSE            MIT
 tests/run.sh       every test below, in order
-tests/*-test.sh    manifest, qmllint, the bar layout model, and the four scripts
+tests/*-test.sh    manifest, qmllint, the bar layout model, and the five scripts
 ```
 
 `tests/run.sh` needs nothing installed and changes nothing: every test that
 runs a script builds a home and an Omarchy of its own under `mktemp -d`, and
-the two scripts that run commands are pointed at stubs that record what they
-were called with. The bar layout model needs none of that, being plain
+the scripts that run commands are pointed at stubs that record what they were
+called with; the look test's stubbed `hyprctl` can also be told to report a
+config error, to prove the write backs out. The bar layout model needs none of that, being plain
 JavaScript that touches nothing, and its suite is skipped where node is
 missing. The deploy test refuses outright to run a plan naming an absolute
 path outside its stub directory, because a plan is executed as written and one
