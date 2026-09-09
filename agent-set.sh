@@ -10,7 +10,7 @@ set -euo pipefail
 
 agent="${1:?usage: agent-set.sh <agent>}"
 case "$agent" in
-  pi|omp|opencode|claude|codex|crush|grok|gemini|copilot) ;;
+  pi|omp|opencode|claude|codex|crush|grok|gemini|copilot|hermes|openclaw|cursor-agent|muse) ;;
   *) echo "unknown agent: $agent" >&2; exit 1 ;;
 esac
 

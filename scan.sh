@@ -124,8 +124,29 @@ zen zen-browser Zen ZEN
 TBL
 }
 
+# Coding agents. Most are present when their binary is; Hermes and OpenClaw
+# (Omarchy 4.0.3) leave a stub on PATH from first boot that says nothing about
+# whether the agent is behind it, so where Omarchy ships an
+# omarchy-install-<agent>-cli its --check is the answer, as it is for
+# omarchy-default-agent itself.
+agent_present() {
+  local id="$1" bin="$2"
+  if command -v "omarchy-install-$id-cli" >/dev/null 2>&1; then
+    timeout 2 "omarchy-install-$id-cli" --check >/dev/null 2>&1
+  else
+    present "$bin"
+  fi
+}
+
 emit_agents() {
-  emit_tagged "$(omarchy-default-agent 2>/dev/null)" <<'TBL'
+  local current
+  current="$(omarchy-default-agent 2>/dev/null)"
+  while read -r id bin name tag; do
+    [[ -n ${id:-} ]] || continue
+    # The table is split on whitespace, so a multi-word name is hyphenated
+    # there and spaced here.
+    agent_present "$id" "$bin" && printf '%s\t%s\t\t%s\n' "$id" "${name//-/ }" "$tag"
+  done <<'TBL' | emit_rows "$current"
 claude claude Claude CLD
 codex codex Codex CDX
 opencode opencode OpenCode OPC
@@ -135,6 +156,10 @@ crush crush Crush CRSH
 gemini gemini Gemini GEM
 grok grok Grok GROK
 copilot copilot Copilot COPI
+hermes hermes Hermes HRMS
+openclaw openclaw OpenClaw CLAW
+cursor-agent cursor-agent Cursor-CLI CURS
+muse muse Muse-Code MUSE
 TBL
 }
 

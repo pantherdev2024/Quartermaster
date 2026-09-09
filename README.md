@@ -181,7 +181,7 @@ the top of the left column. The active pill spells out its name.
 | **Cyberware** | Terminal | installed alacritty / foot / ghostty / kitty | `omarchy-default-terminal` |
 | | Editor | installed editors `omarchy default editor` knows | `omarchy-default-editor` |
 | | Browser | installed browsers `omarchy default browser` knows | `omarchy-default-browser` |
-| | Agent | coding agents on `PATH` | `agent-set.sh` |
+| | Agent | the coding agents `omarchy default agent` knows, when present | `agent-set.sh` |
 
 Style is what the desktop wears — its palette, its wallpaper and its type,
 face and size together — Shell is the frame it hangs on, and Cyberware is the
