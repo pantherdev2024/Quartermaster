@@ -73,6 +73,9 @@ TechFrame {
       Text {
         id: kicker
         anchors.left: parent.left
+        anchors.right: stateWord.left
+        anchors.rightMargin: Style.space(10)
+        elide: Text.ElideRight
         text: "ITEM DATA  //  " + (root.slot.label || "")
         color: root.muted
         font.family: root.uiFont
@@ -82,6 +85,7 @@ TechFrame {
       }
 
       Text {
+        id: stateWord
         anchors.right: parent.right
         text: root.previewed ? (root.host ? root.host.previewTag(root.slot.id) : "PREVIEW")
           : root.staged ? "FITTED"
@@ -167,6 +171,17 @@ TechFrame {
       font.family: root.uiFont
       font.pixelSize: Style.font.caption
       font.letterSpacing: 1
+      elide: Text.ElideRight
+    }
+
+    // A preset's values, or whatever else an item says about itself.
+    Text {
+      visible: root.kind === "plain" && root.item && root.item.meta ? true : false
+      width: parent.width
+      text: root.item && root.item.meta ? root.item.meta : ""
+      color: root.muted
+      font.family: root.uiFont
+      font.pixelSize: Style.font.bodySmall
       elide: Text.ElideRight
     }
 

@@ -3,16 +3,19 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import qs.Commons
 
-// The character: the mock desktop in a bracketed viewport with every slot's
-// current fitting called out around it — style down the left, cyberware down
-// the right, shell along the foot — each tethered to the viewport by a
-// leader line. Callouts read from the same preview/fitted/live state as the slot
-// list, so browsing on the left re-labels the character on the right at once.
+// The character: the mock desktop, large and quiet, with every slot's current
+// fitting named around it — style down the left, cyberware down the right,
+// shell along the foot. The names hang off one hairline rail per column;
+// nothing is boxed, nothing glows, and nothing is drawn between a tag and the
+// desktop: the tag the cursor is on turns its stretch of rail to the accent,
+// and the desktop itself shows the change. Tags read from the same
+// preview/fitted/live state as the slot list, so browsing on the left
+// re-labels the character at once.
 //
 // The arrangement is sized to take more slots than it has: a side column holds
 // what fits beside the viewport and the rest spills to the foot, which wraps
 // and may use the pane's full width. A pane too narrow to flank at all stacks
-// the callouts into a grid underneath instead.
+// the tags into a grid underneath instead.
 Item {
   id: root
 
@@ -25,6 +28,7 @@ Item {
   readonly property color warn: host ? host.warn : Color.urgent
   readonly property color good: host ? host.good : Color.accent
   readonly property color line: host ? host.line : Color.muted
+  readonly property color backdrop: host ? host.backdrop : Color.background
   readonly property string uiFont: host ? host.uiFont : Style.font.menuFamily
 
   function slotsIn(cat) {
@@ -38,91 +42,79 @@ Item {
   readonly property var gridSlots: styleSlots.concat(shellSlots).concat(cyberSlots)
 
   // ---- Geometry ---------------------------------------------------------
-  readonly property real gutter: Style.space(22)
-  readonly property real calloutHeight: Style.space(58)
-  readonly property real cardGap: Style.space(16)
-  // The narrowest a callout may be drawn. Below this it stops being worth
-  // the width it takes, and the layout should give up flanking instead.
-  readonly property real minCardWidth: Style.space(132)
-  readonly property real viewportShare: 0.58
+  readonly property real gutter: Style.space(20)
+  readonly property real tagHeight: Style.space(46)
+  readonly property real tagGap: Style.space(12)
+  // The narrowest a tag may be drawn: a name elides past this, and the
+  // layout would rather shrink the viewport than the tags.
+  readonly property real minTagWidth: Style.space(124)
+  readonly property real viewportShare: 0.66
+  // The nameplate sits above the viewport, so the viewport starts below it.
+  readonly property real plateRoom: Style.space(30 + 16)
 
-  // Flanking costs the viewport's share of the width plus, on each side, a
-  // gutter and a card at its floor. Deciding from that rather than from a
-  // screen width means a roomier spacing scale, or a left column that grows,
-  // falls back to the stack on its own instead of overlapping.
-  // The width at which flanking stops being possible. Panes negotiate
-  // against this so nothing has to know the constants behind it.
-  readonly property real minFlankWidth: 2 * (root.gutter + root.minCardWidth) / (1 - root.viewportShare)
-  readonly property bool flanked: width >= root.minFlankWidth && height >= Style.space(268)
-  // No room to flank: the callouts form a grid under the viewport, each
-  // tethered to the card above it (or to the nameplate).
+  // Flanking costs, on each side, a gutter and a tag at its floor; whatever
+  // is left is the most the viewport may take. On a laptop panel that is
+  // less than its usual share, and the viewport gives way rather than the
+  // arrangement: the tags surround the character on every screen that can
+  // still show a character worth the name.
+  readonly property real minViewportWidth: Style.space(380)
+  readonly property real flankViewportWidth: width - 2 * (root.gutter + root.minTagWidth)
+  readonly property bool flanked: root.flankViewportWidth >= root.minViewportWidth && height >= Style.space(300)
+  // The narrowest pane that still flanks. The host sizes the slot column
+  // against this, so widening that column never tips the character into
+  // the stack by accident.
+  readonly property real minFlankWidth: 2 * (root.gutter + root.minTagWidth) + root.minViewportWidth
   readonly property bool stacked: !root.flanked
 
-  readonly property real sideWidth: Math.max(root.minCardWidth, (width - viewport.width) / 2 - root.gutter)
+  readonly property real sideWidth: Math.max(root.minTagWidth, (width - viewport.width) / 2 - root.gutter)
 
   // ---- Buckets ----------------------------------------------------------
-  // How many callouts a side column holds for free: a column is centred on
-  // the viewport and may reach a little past it, but no further, because
-  // past that it starts pushing the foot row down. Beyond this a slot is
-  // cheaper at the foot, where one row holds several.
+  // How many tags a side column holds for free: a column is centred on the
+  // viewport and may reach a little past it, but no further.
   readonly property int sideCapacity: {
-    var room = viewport.height + 2 * Style.space(56)
-    return Math.max(1, Math.floor((room + root.cardGap) / (root.calloutHeight + root.cardGap)))
+    var room = viewport.height + 2 * Style.space(40)
+    return Math.max(1, Math.floor((room + root.tagGap) / (root.tagHeight + root.tagGap)))
   }
 
-  // Style keeps the left, Cyberware the right and Shell the foot, because
-  // that grouping is the point. What a side column cannot hold spills into
-  // the foot rather than pushing the column off the pane, so a category can
-  // grow past the height without breaking the layout.
+  // Style keeps the left, Cyberware the right and Shell the foot. What a
+  // side column cannot hold spills into the foot.
   readonly property var leftSlots: root.styleSlots.slice(0, root.sideCapacity)
   readonly property var rightSlots: root.cyberSlots.slice(0, root.sideCapacity)
   readonly property var bottomSlots: root.shellSlots
     .concat(root.styleSlots.slice(root.sideCapacity))
     .concat(root.cyberSlots.slice(root.sideCapacity))
 
-  // The foot sits under the viewport by default, but it may run out to the
-  // pane's full width and wrap rather than squeeze its cards below the
-  // floor: it is the bucket that takes every spill.
+  // The foot sits under the viewport by default, but may run out to the
+  // pane's full width and wrap rather than squeeze its tags below the floor.
+  // When the row has to wrap, the rows are balanced: eight tags on a pane
+  // that fits six become four and four, not six and two.
   readonly property int bottomColumns: {
     var n = root.bottomSlots.length
     if (n <= 0) return 1
-    var fit = Math.floor((root.width + root.cardGap) / (root.minCardWidth + root.cardGap))
-    return Math.max(1, Math.min(n, fit))
+    var fit = Math.max(1, Math.floor((root.width + root.tagGap) / (root.minTagWidth + root.tagGap)))
+    var rows = Math.ceil(n / fit)
+    return Math.max(1, Math.ceil(n / rows))
   }
   readonly property real bottomRowWidth: {
     var cols = root.bottomColumns
-    var floorWidth = cols * root.minCardWidth + (cols - 1) * root.cardGap
+    var floorWidth = cols * root.minTagWidth + (cols - 1) * root.tagGap
     return Math.min(root.width, Math.max(viewport.width, floorWidth))
   }
-  readonly property real bottomCardWidth:
-    (root.bottomRowWidth - root.cardGap * (root.bottomColumns - 1)) / root.bottomColumns
+  readonly property real bottomTagWidth:
+    (root.bottomRowWidth - root.tagGap * (root.bottomColumns - 1)) / root.bottomColumns
 
   // How far the taller side column reaches past the viewport, top and foot.
-  // The group is centred on the union of the two, so a tall column pushes
-  // the whole arrangement down instead of off the top of the pane.
   readonly property real sideOverhang: root.stacked ? 0
     : Math.max(0, (Math.max(leftColumn.height, rightColumn.height) - viewport.height) / 2)
+  // What has to clear above the viewport: the nameplate, or a column's overhang.
+  readonly property real topRoom: Math.max(root.sideOverhang, root.plateRoom)
 
-  // Where the foot row sits, measured from the viewport's own top. It
-  // normally sits under the nameplate in the viewport's channel, clear of
-  // the side columns. Once it runs wider than that channel it has to start
-  // below the taller column instead of beside it.
+  // Where the foot row sits, measured from the viewport's own top.
   readonly property real footOffset: {
-    var underNameplate = viewport.height + Style.space(12 + 30 + 34)
+    var under = viewport.height + Style.space(28)
     var channel = root.width - 2 * (root.sideWidth + root.gutter)
-    if (root.bottomRowWidth <= channel) return underNameplate
-    return Math.max(underNameplate, viewport.height + root.sideOverhang + root.cardGap)
-  }
-
-  function repaintLeaders() { leaders.requestPaint() }
-  onWidthChanged: repaintLeaders()
-  onHeightChanged: repaintLeaders()
-  Component.onCompleted: Qt.callLater(repaintLeaders)
-
-  Connections {
-    target: root.host
-    function onSlotIndexChanged() { root.repaintLeaders() }
-    function onStagedChanged() { root.repaintLeaders() }
+    if (root.bottomRowWidth <= channel) return under
+    return Math.max(under, viewport.height + root.sideOverhang + root.tagGap)
   }
 
   // ---- Viewport ------------------------------------------------------
@@ -131,74 +123,57 @@ Item {
     anchors.horizontalCenter: parent.horizontalCenter
     // Everything the arrangement occupies, measured from the viewport's top.
     readonly property real groupHeight: root.stacked
-      ? height + Style.space(12 + 30 + 24) + grid.height
+      ? height + Style.space(24) + grid.height
       : root.footOffset + bottomRow.height
-    // Centre the union of that and the side columns, not the stack alone:
-    // the columns are centred on the viewport and reach above it.
-    y: root.sideOverhang
-      + Math.max(Style.space(16), (parent.height - root.sideOverhang - groupHeight) / 2)
+    // Centre the union of that and what sits above the viewport.
+    y: root.topRoom + Math.max(Style.space(8), (parent.height - root.topRoom - groupHeight) / 2)
     width: root.stacked
       ? Math.min(parent.width * 0.86,
-                 Math.max(Style.space(180), parent.height - Style.space(16 + 12 + 30 + 24) - grid.height) * (16 / 9))
-      : Math.min(parent.width * root.viewportShare, (parent.height * 0.50) * (16 / 9))
+                 Math.max(Style.space(180), (parent.height - root.plateRoom - Style.space(8 + 24) - grid.height)) * (16 / 9))
+      : Math.min(parent.width * root.viewportShare, root.flankViewportWidth, (parent.height * 0.60) * (16 / 9))
     height: width * (9 / 16)
     chamfer: Style.space(14)
     cuts: ["tl", "tr", "bl", "br"]
-    fill: "transparent"
+    fill: root.backdrop
     stroke: root.line
     strokeWidth: 1
     brackets: true
     bracketColor: root.accent
-    bracketLength: Style.space(22)
+    bracketLength: Style.space(24)
     bracketWidth: 2
-    bracketInset: 6
-
-    onXChanged: root.repaintLeaders()
-    onYChanged: root.repaintLeaders()
-    onWidthChanged: root.repaintLeaders()
-
-    // A slow scan sweep over the viewport: the character is a projection.
-    Rectangle {
-      id: sweep
-      anchors { left: parent.left; right: parent.right; margins: Style.space(6) }
-      height: Style.space(28)
-      z: 2
-      visible: root.visible
-      gradient: Gradient {
-        GradientStop { position: 0.0; color: "transparent" }
-        GradientStop { position: 0.85; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.10) }
-        GradientStop { position: 1.0; color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.22) }
-      }
-      SequentialAnimation on y {
-        loops: Animation.Infinite
-        running: root.visible && root.host && root.host.opened
-        NumberAnimation { from: -sweep.height; to: viewport.height; duration: 5200; easing.type: Easing.InOutSine }
-        PauseAnimation { duration: 2600 }
-      }
-    }
+    bracketInset: 7
 
     MiniDesktop {
       id: preview
-      anchors { fill: parent; margins: Style.space(6) }
+      anchors { fill: parent; margins: Style.space(5) }
       colors: root.host && root.host.stagedThemeObject ? root.host.stagedThemeObject.colors : ({})
       wallpaper: root.host ? root.host.previewWallpaper : ""
       fontFamily: root.host ? root.host.previewFont : "monospace"
       themeName: root.host && root.host.stagedThemeObject ? root.host.stagedThemeObject.name : ""
       terminalName: root.host ? root.host.previewTerminal : ""
+      editorName: root.host ? root.host.previewEditor : ""
+      browserName: root.host ? root.host.previewBrowser : ""
+      agentName: root.host ? root.host.previewAgent : ""
       barPosition: root.host ? root.host.previewBarPosition : "top"
       barTransparent: root.host ? root.host.previewBarTransparent : false
       barLayout: root.host ? root.host.previewBarLayout : ({})
       glyphs: root.host ? root.host.widgetGlyphs : ({})
       fontScale: root.host ? root.host.previewFontScale : 1
+      gapsIn: root.host ? root.host.previewLook.gapsIn : 5
+      gapsOut: root.host ? root.host.previewLook.gapsOut : 10
+      borderSize: root.host ? root.host.previewLook.borderSize : 2
+      rounding: root.host ? root.host.previewLook.rounding : 0
+      blurOn: root.host ? root.host.previewLook.blur : false
+      shadowOn: root.host ? root.host.previewLook.shadow : false
     }
   }
 
-  // Nameplate under the viewport: the staged theme and whether the
+  // Nameplate above the viewport: the staged theme, and whether the
   // character matches what is actually worn.
   Item {
     id: nameplate
-    anchors { top: viewport.bottom; topMargin: Style.space(12); horizontalCenter: viewport.horizontalCenter }
-    width: viewport.width
+    anchors { bottom: viewport.top; bottomMargin: Style.space(16); horizontalCenter: viewport.horizontalCenter }
+    width: viewport.width - Style.space(8)
     height: Style.space(30)
 
     Text {
@@ -208,9 +183,9 @@ Item {
       text: root.host && root.host.stagedThemeObject ? root.host.stagedThemeObject.name.toUpperCase() : ""
       color: root.fg
       font.family: root.uiFont
-      font.pixelSize: Style.font.title
+      font.pixelSize: Style.font.heading
       font.bold: true
-      font.letterSpacing: 4
+      font.letterSpacing: 5
     }
 
     Text {
@@ -234,92 +209,14 @@ Item {
     }
   }
 
-  // ---- Leader lines ----------------------------------------------------
-  // One line per callout, from its inner edge to the nearest viewport edge,
-  // ending in a small square on the viewport. The focused slot's line is
-  // accent; a staged slot's line is the warning colour.
-  Canvas {
-    id: leaders
-    anchors.fill: parent
-    z: -1
-    antialiasing: true
-
-    function lineColorFor(def) {
-      if (!root.host) return root.line
-      if (root.host.currentSlot && root.host.currentSlot.id === def.id) return root.accent
-      if (root.host.preview[def.id] !== undefined) return root.accent
-      if (root.host.staged[def.id]) return root.warn
-      return root.line
-    }
-
-    function drawLeader(ctx, from, to, color) {
-      ctx.strokeStyle = color
-      ctx.fillStyle = color
-      ctx.lineWidth = 1
-      ctx.beginPath()
-      ctx.moveTo(from.x, from.y)
-      ctx.lineTo(to.x, to.y)
-      ctx.stroke()
-      ctx.fillRect(to.x - 2.5, to.y - 2.5, 5, 5)
-    }
-
-    onPaint: {
-      var ctx = getContext("2d")
-      ctx.reset()
-      ctx.clearRect(0, 0, width, height)
-
-      function each(column, side) {
-        for (var i = 0; i < column.children.length; i++) {
-          var card = column.children[i]
-          if (!card.def) continue
-          var p = card.mapToItem(root, 0, 0)
-          var color = lineColorFor(card.def)
-          if (side === "left") {
-            var y = p.y + card.height / 2
-            drawLeader(ctx, { x: p.x + card.width, y: y }, { x: viewport.x, y: Math.max(viewport.y + 8, Math.min(viewport.y + viewport.height - 8, y)) }, color)
-          } else if (side === "right") {
-            var y2 = p.y + card.height / 2
-            drawLeader(ctx, { x: p.x, y: y2 }, { x: viewport.x + viewport.width, y: Math.max(viewport.y + 8, Math.min(viewport.y + viewport.height - 8, y2)) }, color)
-          } else {
-            var x = p.x + card.width / 2
-            drawLeader(ctx, { x: x, y: p.y }, { x: x, y: nameplate.y + nameplate.height }, color)
-          }
-        }
-      }
-      // Cards under the viewport chain upward: each tethers to the card
-      // above it in the same column, and the top row to the nameplate. A
-      // single row has nothing above it, so every card tethers straight up,
-      // which is what the foot row does until it has to wrap.
-      function chainUp(container, columns) {
-        var cards = []
-        for (var i = 0; i < container.children.length; i++)
-          if (container.children[i].def) cards.push(container.children[i])
-        for (var j = 0; j < cards.length; j++) {
-          var c = cards[j]
-          var cp = c.mapToItem(root, 0, 0)
-          var cx = cp.x + c.width / 2
-          var above = j >= columns ? cards[j - columns] : null
-          var toY = above ? above.mapToItem(root, 0, 0).y + above.height : nameplate.y + nameplate.height
-          drawLeader(ctx, { x: cx, y: cp.y }, { x: cx, y: toY }, lineColorFor(c.def))
-        }
-      }
-
-      if (root.stacked) { chainUp(grid, grid.columns); return }
-      each(leftColumn, "left")
-      each(rightColumn, "right")
-      chainUp(bottomRow, bottomRow.columns)
-    }
-  }
-
   // ---- Compact grid ----------------------------------------------------
   Grid {
     id: grid
     visible: root.stacked
-    anchors { top: nameplate.bottom; topMargin: Style.space(24); left: parent.left; right: parent.right }
-    columns: 3
-    columnSpacing: Style.space(12)
-    rowSpacing: Style.space(20)
-    onHeightChanged: root.repaintLeaders()
+    anchors { top: viewport.bottom; topMargin: Style.space(24); left: parent.left; right: parent.right }
+    columns: Math.max(2, Math.min(5, Math.floor((root.width + root.tagGap) / (root.minTagWidth + root.tagGap))))
+    columnSpacing: root.tagGap
+    rowSpacing: Style.space(16)
 
     Repeater {
       model: root.stacked ? root.gridSlots : []
@@ -327,19 +224,19 @@ Item {
         required property var modelData
         def: modelData
         side: "bottom"
+        ownRule: true
         width: (grid.width - grid.columnSpacing * (grid.columns - 1)) / grid.columns
       }
     }
   }
 
-  // ---- Callout columns -------------------------------------------------
+  // ---- Tag columns, each on one rail ---------------------------------------
   Column {
     id: leftColumn
     visible: root.flanked
     anchors { left: parent.left; verticalCenter: viewport.verticalCenter }
     width: root.sideWidth
-    spacing: root.cardGap
-    onHeightChanged: root.repaintLeaders()
+    spacing: root.tagGap
 
     Repeater {
       model: root.flanked ? root.leftSlots : []
@@ -351,14 +248,21 @@ Item {
       }
     }
   }
+  Rectangle {
+    visible: root.flanked && root.leftSlots.length > 0
+    x: leftColumn.x + leftColumn.width - 1
+    y: leftColumn.y
+    width: 1
+    height: leftColumn.height
+    color: root.line
+  }
 
   Column {
     id: rightColumn
     visible: root.flanked
     anchors { right: parent.right; verticalCenter: viewport.verticalCenter }
     width: root.sideWidth
-    spacing: root.cardGap
-    onHeightChanged: root.repaintLeaders()
+    spacing: root.tagGap
 
     Repeater {
       model: root.flanked ? root.rightSlots : []
@@ -370,6 +274,14 @@ Item {
       }
     }
   }
+  Rectangle {
+    visible: root.flanked && root.rightSlots.length > 0
+    x: rightColumn.x
+    y: rightColumn.y
+    width: 1
+    height: rightColumn.height
+    color: root.line
+  }
 
   Grid {
     id: bottomRow
@@ -377,9 +289,7 @@ Item {
     anchors.horizontalCenter: parent.horizontalCenter
     y: viewport.y + root.footOffset
     columns: root.bottomColumns
-    spacing: root.cardGap
-    onWidthChanged: root.repaintLeaders()
-    onHeightChanged: root.repaintLeaders()
+    spacing: root.tagGap
 
     Repeater {
       model: root.flanked ? root.bottomSlots : []
@@ -387,16 +297,34 @@ Item {
         required property var modelData
         def: modelData
         side: "bottom"
-        width: root.bottomCardWidth
+        // Wrapped rows below the first carry their own rule.
+        ownRule: index >= bottomRow.columns
+        required property int index
+        width: root.bottomTagWidth
       }
     }
   }
+  Rectangle {
+    visible: root.flanked && root.bottomSlots.length > 0
+    x: bottomRow.x
+    y: bottomRow.y
+    width: bottomRow.width
+    height: 1
+    color: root.line
+  }
 
-  // ---- One callout card ------------------------------------------------
+  // ---- One tag ------------------------------------------------------------
+  // No box. The slot's name in small caps, the fitted item's name under it,
+  // and a word for its state only when the state is worth a word: PREVIEW
+  // or FITTED. Equipped is the quiet default. The focused tag turns its
+  // stretch of the rail to the accent. Text on the left column is set flush
+  // right, toward the rail.
   component Callout: Item {
     id: card
     property var def: ({})
     property string side: "left"
+    // A tag draws its own rule when it is not sitting on a shared rail.
+    property bool ownRule: false
 
     readonly property var item: root.host ? root.host.selectedItem(def.id) : null
     readonly property bool focused: root.host && root.host.currentSlot && root.host.currentSlot.id === def.id
@@ -405,107 +333,93 @@ Item {
     // the slot holds (fitted, else live).
     readonly property bool previewed: root.host && root.host.preview[def.id] !== undefined
       && root.host.preview[def.id] !== (root.host.staged[def.id] || root.host.equippedId(def.id))
-    // A multi slot is always worn: its value is the whole layout.
     readonly property bool multi: def.multi === true
     readonly property string tag: previewed ? (root.host ? root.host.previewTag(def.id) : "PREVIEW")
-      : staged ? "FITTED" : (multi || (item && item.equipped) ? "EQUIPPED" : (item ? "" : "EMPTY"))
-    readonly property color tagColor: previewed ? root.accent : staged ? root.warn : (multi || (item && item.equipped) ? root.good : root.muted)
-    // No room for the tag word: compact, or a narrow card in the wide layout.
-    readonly property bool tight: width < Style.space(170)
+      : staged ? "FITTED" : ""
+    readonly property color tagColor: previewed ? root.accent : root.warn
+    readonly property bool rightAligned: side === "left"
+    readonly property bool hot: focused || mouse.containsMouse
 
-    height: root.calloutHeight
+    height: root.tagHeight
 
-    TechFrame {
-      anchors.fill: parent
-      chamfer: Style.space(9)
-      cuts: card.side === "left" ? ["tl", "bl"] : card.side === "right" ? ["tr", "br"] : ["bl", "br"]
-      fill: root.host ? (card.focused ? root.host.paneBgFocused : root.host.paneBg) : "transparent"
-      stroke: card.focused ? root.accent : root.line
-      strokeWidth: 1
-      brackets: card.focused
-      bracketColor: root.accent
-      bracketLength: Style.space(10)
-      bracketWidth: 2
-      bracketInset: 3
-      edge: card.staged ? (card.side === "left" ? "right" : card.side === "right" ? "left" : "top") : ""
-      edgeColor: root.warn
-      edgeWidth: Style.space(3)
+    // The rule: the tag's own when it has no rail, and the focused tag's
+    // accent stretch either way.
+    Rectangle {
+      visible: card.side !== "bottom" && (card.ownRule || card.focused)
+      anchors { top: parent.top; bottom: parent.bottom }
+      x: card.side === "left" ? parent.width - width : 0
+      width: card.focused ? 2 : 1
+      color: card.focused ? root.accent : root.line
+    }
+    Rectangle {
+      visible: card.side === "bottom" && (card.ownRule || card.focused)
+      anchors { left: parent.left; right: parent.right; top: parent.top }
+      height: card.focused ? 2 : 1
+      color: card.focused ? root.accent : root.line
+    }
 
-      Text {
-        id: icon
-        anchors.left: parent.left
-        anchors.leftMargin: Style.space(12)
-        anchors.verticalCenter: parent.verticalCenter
-        text: card.def.icon || ""
-        color: card.focused ? root.accent : root.muted
-        font.family: root.uiFont
-        font.pixelSize: Style.font.iconLarge
+    Column {
+      anchors {
+        left: parent.left; right: parent.right
+        leftMargin: card.side === "right" ? Style.space(16) : Style.space(4)
+        rightMargin: card.side === "left" ? Style.space(16) : Style.space(4)
+        verticalCenter: parent.verticalCenter
+        verticalCenterOffset: card.side === "bottom" ? Style.space(4) : 0
       }
+      spacing: Style.space(4)
 
-      Column {
-        anchors.left: icon.right
-        anchors.leftMargin: Style.space(10)
-        anchors.right: parent.right
-        anchors.rightMargin: Style.space(12)
-        anchors.verticalCenter: parent.verticalCenter
-        spacing: Style.space(2)
+      Item {
+        width: parent.width
+        height: labelText.implicitHeight
 
-        Item {
-          width: parent.width
-          height: labelText.implicitHeight
-
-          Text {
-            id: labelText
-            anchors.left: parent.left
-            anchors.right: tagText.visible ? tagText.left : (tagDot.visible ? tagDot.left : parent.right)
-            anchors.rightMargin: tagText.visible || tagDot.visible ? Style.space(6) : 0
-            elide: Text.ElideRight
-            text: card.def.label || ""
-            color: card.focused ? root.accent : root.muted
-            font.family: root.uiFont
-            font.pixelSize: Style.font.caption
-            font.bold: true
-            font.letterSpacing: 1.5
-          }
-
-          Text {
-            id: tagText
-            anchors.right: parent.right
-            text: card.tag
-            color: card.tagColor
-            font.family: root.uiFont
-            font.pixelSize: Style.font.caption
-            font.bold: true
-            font.letterSpacing: 1.2
-            visible: text !== "" && !card.tight
-          }
-
-          // Compact cards have no room for the word, so the state is a
-          // square in the tag colour, echoing the leader-line endpoint.
-          Rectangle {
-            id: tagDot
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            width: Style.space(6); height: Style.space(6)
-            color: card.tagColor
-            visible: card.tight && card.tag !== ""
-          }
+        // The name yields to the state word rather than running under it:
+        // both are anchored, and the name elides.
+        Text {
+          id: labelText
+          anchors.left: card.rightAligned ? (tagText.visible ? tagText.right : parent.left) : parent.left
+          anchors.right: card.rightAligned ? parent.right : (tagText.visible ? tagText.left : parent.right)
+          anchors.leftMargin: card.rightAligned && tagText.visible ? Style.space(8) : 0
+          anchors.rightMargin: !card.rightAligned && tagText.visible ? Style.space(8) : 0
+          horizontalAlignment: card.rightAligned ? Text.AlignRight : Text.AlignLeft
+          elide: Text.ElideRight
+          text: card.def.label || ""
+          color: card.hot ? root.accent : root.muted
+          font.family: root.uiFont
+          font.pixelSize: Style.font.caption
+          font.bold: true
+          font.letterSpacing: 2
         }
 
         Text {
-          width: parent.width
-          text: card.multi && root.host ? root.host.barModsSummary : (card.item ? card.item.name : "—")
-          color: root.fg
+          id: tagText
+          anchors.left: card.rightAligned ? parent.left : undefined
+          anchors.right: card.rightAligned ? undefined : parent.right
+          text: card.tag
+          color: card.tagColor
           font.family: root.uiFont
-          font.pixelSize: Style.font.subtitle
-          font.bold: true
-          elide: Text.ElideRight
+          font.pixelSize: Style.font.caption
+          font.letterSpacing: 1.5
+          visible: text !== ""
         }
+      }
+
+      Text {
+        width: parent.width
+        horizontalAlignment: card.rightAligned ? Text.AlignRight : Text.AlignLeft
+        text: card.multi && root.host ? root.host.barModsSummary : (card.item ? card.item.name : "—")
+        color: root.fg
+        font.family: root.uiFont
+        font.pixelSize: Style.font.subtitle
+        font.bold: true
+        elide: Text.ElideRight
       }
     }
 
     MouseArea {
+      id: mouse
       anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
       onClicked: {
         if (!root.host) return
         root.host.slotIndex = root.host.slotDefs.findIndex(function(d) { return d.id === card.def.id })

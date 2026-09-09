@@ -22,6 +22,12 @@ import "BarLayout.js" as BarLayout
 // for whatever the cursor can do from where it stands. ESC steps back to the
 // boot screen, and from there out.
 //
+// SHELL carries Hyprland's own look as well as the bar: gaps, border,
+// corners, blur and shadow, each a slot of presets. Those deploy through
+// look-set.sh, which renders one Lua file into Omarchy's toggles drop-in
+// directory and reloads Hyprland; look-presets.json is the only place the
+// values live, and the mock desktop paints them from the same table.
+//
 // Three steps, on purpose. Browsing PREVIEWS: the character repaints and
 // nothing else moves. ENTER FITS the preview into the slot: the fitting is
 // what you are building, still touching nothing. D DEPLOYS the fitting: the
@@ -40,7 +46,7 @@ Item {
   // Cell size: the inventory cells shrink until the tallest category fits
   // its column with the item data panel, so no screen ever has to scroll a
   // slot list. The column's fixed costs are the tabs, the margins around the
-  // list, the item data panel, and every slot's header row and frame padding.
+  // list, the item data panel, and every row's frame padding.
   readonly property int maxSlotsPerCategory: {
     var counts = {}, m = 0
     for (var i = 0; i < slotDefs.length; i++) {
@@ -59,13 +65,13 @@ Item {
     var column = leftColumn.height
     if (column <= 0) return full
     var n = root.maxSlotsPerCategory
-    var fixed = Style.space(36 + 22 + 24) + root.itemDataHeight + Style.space(42) * n + Style.space(16) * (n - 1)
+    var fixed = Style.space(36 + 22 + 24) + root.itemDataHeight + Style.space(14) * n + root.slotMinSpacing * (n - 1)
     var fit = Math.floor((column - fixed) / n)
     // Cells are square and six of them set the column's width, so cap by
     // what the body can spare for that column as well as by its height:
     // freeing height here must not quietly take width from the character.
     var byWidth = body.leftCeiling > 0
-      ? Math.floor((body.leftCeiling - Style.space(12) - Style.space(7)
+      ? Math.floor((body.leftCeiling - Style.space(12) - Style.space(7) - root.slotLabelRoom
           - (root.maxVisibleCells - 1) * Style.space(8)) / root.maxVisibleCells)
       : full
     return Math.max(Style.space(40), Math.min(full, fit, byWidth))
@@ -74,9 +80,12 @@ Item {
   // An inventory row shows at most this many cells at once; the rest are
   // reached by cycling with ← →, which the row already scrolls to follow.
   // Capping the row is what keeps the left column narrow, so the character
-  // gets the width back — on a laptop panel most of all.
-  readonly property int maxVisibleCells: 6
-  readonly property real slotRowWidth: Style.space(12) + Style.space(7)
+  // gets the width back — on a laptop panel most of all. The row also
+  // carries the slot's name and count in a block before its cells.
+  readonly property int maxVisibleCells: root.compact ? 4 : 5
+  readonly property int slotLabelWidth: Style.space(140)
+  readonly property real slotLabelRoom: root.slotLabelWidth + Style.space(8)
+  readonly property real slotRowWidth: Style.space(12) + Style.space(7) + root.slotLabelRoom
     + root.maxVisibleCells * root.cellSize
     + (root.maxVisibleCells - 1) * Style.space(8)
 
@@ -84,6 +93,10 @@ Item {
   // spacing and the hint row close up. The character decides separately
   // whether it can flank, from its own pane rather than the whole screen.
   readonly property bool compact: panel.width < Style.space(1500)
+  // The least room between two rows in the list, and the most: rows read as
+  // one list, so they neither touch nor drift apart when a category is short.
+  readonly property int slotMinSpacing: Style.space(10)
+  readonly property int slotMaxSpacing: Style.space(28)
 
   // Resolved from the QML file's own location so a rename or clone still works.
   readonly property string pluginDir: {
@@ -115,6 +128,15 @@ Item {
     // The bar's widget layout: a multi-select slot. `apply` is only a marker;
     // deployCommands() asks barModsCommands() for the real command list.
     { id: "barMods",        cat: "chassis",   label: "BAR MODS",     icon: "󰐱", order: 32, apply: ["omarchy-bar"], multi: true },
+    // Hyprland's look: presets from look-presets.json, deployed by the
+    // plugin's own look-set.sh with the slot fixed in the prefix and the
+    // preset id as the trailing argument. Deploy order puts them after the
+    // theme, whose reload they would otherwise race, and before the bar.
+    { id: "gaps",           cat: "chassis",   label: "GAPS",         icon: "󰕰", order: 25, apply: [pluginDir + "/look-set.sh", "gaps"] },
+    { id: "border",         cat: "chassis",   label: "BORDER",       icon: "󰆏", order: 26, apply: [pluginDir + "/look-set.sh", "border"] },
+    { id: "corners",        cat: "chassis",   label: "CORNERS",      icon: "󰝤", order: 27, apply: [pluginDir + "/look-set.sh", "corners"] },
+    { id: "blur",           cat: "chassis",   label: "BLUR",         icon: "󰂳", order: 28, apply: [pluginDir + "/look-set.sh", "blur"] },
+    { id: "shadow",         cat: "chassis",   label: "SHADOW",       icon: "󰝳", order: 29, apply: [pluginDir + "/look-set.sh", "shadow"] },
     { id: "terminal",       cat: "cyberware", label: "TERMINAL",     icon: "󰆍", order: 50, apply: ["omarchy-default-terminal"] },
     { id: "editor",         cat: "cyberware", label: "EDITOR",       icon: "󰅩", order: 51, apply: ["omarchy-default-editor"] },
     { id: "browser",        cat: "cyberware", label: "BROWSER",      icon: "󰖟", order: 52, apply: ["omarchy-default-browser"] },
@@ -323,18 +345,29 @@ Item {
   }
 
   // ENTER, or a click: the card continues to the equip screen; a saved
-  // loadout fits every slot it recorded and continues, so the character
-  // shows the fitting and D deploys it.
+  // loadout fits every slot it recorded and stays put, so the card reads
+  // FITTED and D deploys it from here. E, or a tile's EDIT, fits the
+  // loadout and continues to the equip screen to change it.
   function bootPick(id) {
     if (root.promptOpen || root.confirmOpen || root.applying) return
     root.bootCursorId = id
     if (id === "") { root.enterEquip(); return }
+    root.fitLoadout(id)
+  }
+  function bootEdit(id) {
+    if (root.promptOpen || root.confirmOpen || root.applying) return
+    if (id === "") return
+    root.bootCursorId = id
+    if (root.fitLoadout(id)) root.enterEquip()
+  }
+  function fitLoadout(id) {
     root.previewLoadout(id)
-    if (root.previewSlot === "") return
+    if (root.previewSlot === "") return false
     root.fitPreview()
-    root.enterEquip()
+    return true
   }
   function activateBoot() { root.bootPick(root.bootCursorId) }
+  function editBoot() { root.bootEdit(root.bootCursorId) }
 
   function enterEquip() {
     root.bootOpen = false
@@ -411,6 +444,7 @@ Item {
     if (slotId === "barTransparent") return inv.barTransparency || []
     if (slotId === "textSize") return inv.textSizes || []
     if (slotId === "barMods") return root.modItems(root.effectiveLayoutString)
+    if (root.lookSlotIds.indexOf(slotId) !== -1) return (inv.look && inv.look[slotId]) || []
     if (slotId === "background") {
       // Backgrounds belong to whichever theme is staged, so this slot's
       // contents change as the theme cursor moves.
@@ -480,6 +514,33 @@ Item {
   }
 
   readonly property string previewFont: root.selectedId("font", "monospace")
+  readonly property string previewEditor: root.selectedId("editor", "")
+  readonly property string previewBrowser: root.selectedId("browser", "")
+  readonly property string previewAgent: root.selectedId("agent", "")
+
+  // Hyprland's look as the character should wear it: the selected preset's
+  // values where a look slot has one, else whatever Hyprland reports live,
+  // else Omarchy's defaults. Presets carry their values in the same nested
+  // shape hyprctl reports, so both are read with one path lookup.
+  readonly property var lookSlotIds: ["gaps", "border", "corners", "blur", "shadow"]
+  function lookValue(slotId, path, fallback) {
+    function dig(o) {
+      for (var i = 0; i < path.length; i++) { if (o === null || o === undefined || typeof o !== "object") return undefined; o = o[path[i]] }
+      return o
+    }
+    var item = root.selectedItem(slotId)
+    var v = item && item.set ? dig(item.set) : undefined
+    if (v === undefined) v = dig((root.inventory && root.inventory.lookLive) || null)
+    return v === undefined || v === null ? fallback : v
+  }
+  readonly property var previewLook: ({
+    gapsIn:     Number(root.lookValue("gaps",    ["general", "gaps_in"], 5)),
+    gapsOut:    Number(root.lookValue("gaps",    ["general", "gaps_out"], 10)),
+    borderSize: Number(root.lookValue("border",  ["general", "border_size"], 2)),
+    rounding:   Number(root.lookValue("corners", ["decoration", "rounding"], 0)),
+    blur:       root.lookValue("blur",   ["decoration", "blur", "enabled"], false) === true,
+    shadow:     root.lookValue("shadow", ["decoration", "shadow", "enabled"], false) === true
+  })
   readonly property string previewBarPosition: root.selectedId("barPosition", "top")
   readonly property bool previewBarTransparent: root.selectedId("barTransparent", "false") === "true"
   readonly property real previewFontScale: Number(root.selectedId("textSize", "12")) / 12
@@ -569,18 +630,47 @@ Item {
   }
 
   // ---- Saving and deleting loadouts ------------------------------------
+  // S opens a chooser: save over one of the saved loadouts, or as a new one.
+  // The loadout the fitting came from, if any, is offered first, so saving
+  // an edit back where it belongs is S then ENTER. Picking NEW asks for a
+  // name. Nothing is ever written under a new name without being asked.
   property bool promptOpen: false
+  property string promptMode: "choose"   // "choose" | "name"
+  property int promptIndex: 0            // 0 is NEW, i is savedLoadouts[i - 1]
   property string pendingLoadoutId: ""
+  readonly property var savedLoadouts: root.itemsFor("loadouts").filter(function(i) { return !i.isNew })
 
   function openSavePrompt() {
     if (root.applying) return
+    var current = root.staged["loadouts"] || ""
+    var idx = 0
+    for (var i = 0; i < root.savedLoadouts.length; i++)
+      if (root.savedLoadouts[i].id === current) idx = i + 1
+    root.promptIndex = idx
+    root.promptMode = root.savedLoadouts.length > 0 ? "choose" : "name"
     root.promptOpen = true
   }
+  function promptMove(delta) {
+    var n = root.savedLoadouts.length + 1
+    root.promptIndex = (root.promptIndex + delta + n) % n
+  }
+  function promptAccept() {
+    if (root.promptMode === "name") { root.saveLoadout(promptInput.text, ""); return }
+    if (root.promptIndex === 0) { root.promptMode = "name"; return }
+    var target = root.savedLoadouts[root.promptIndex - 1]
+    if (target) root.saveLoadout(target.name, target.id)
+  }
+  function promptBack() {
+    if (root.promptMode === "name" && root.savedLoadouts.length > 0) root.promptMode = "choose"
+    else root.promptOpen = false
+  }
 
-  function saveLoadout(name) {
+  function saveLoadout(name, id) {
     name = String(name || "").replace(/^\s+|\s+$/g, "")
     if (!name) return
-    saveProc.command = [root.pluginDir + "/loadouts.sh", "save", name, JSON.stringify(root.currentFitting())]
+    var cmd = [root.pluginDir + "/loadouts.sh", "save", name, JSON.stringify(root.currentFitting())]
+    if (id) cmd.push(id)
+    saveProc.command = cmd
     saveProc.running = true
     root.promptOpen = false
     root.statusText = "saving…"
@@ -826,7 +916,7 @@ Item {
     }
     onExited: function(code) {
       if (code !== 0) { root.statusText = "save failed"; return }
-      root.statusText = "loadout saved"
+      root.statusText = root.savedLoadouts.some(function(l) { return l.id === root.pendingLoadoutId }) ? "loadout updated" : "loadout saved"
       // Land the cursor on the new card once the rescan brings it in.
       var next = {}
       for (var k in root.staged) next[k] = root.staged[k]
@@ -934,8 +1024,17 @@ Item {
 
       Keys.priority: Keys.BeforeItem
       Keys.onPressed: function(event) {
-        if (root.promptOpen) return   // the name prompt owns the keyboard
         var k = event.key
+        if (root.promptOpen) {
+          if (root.promptMode === "name") return   // the name input owns the keyboard
+          if (k === Qt.Key_Up || k === Qt.Key_K) root.promptMove(-1)
+          else if (k === Qt.Key_Down || k === Qt.Key_J) root.promptMove(1)
+          else if (k === Qt.Key_Return || k === Qt.Key_Enter) root.promptAccept()
+          else if (k === Qt.Key_Escape) root.promptBack()
+          else return
+          event.accepted = true
+          return
+        }
         if (root.confirmOpen) {
           if (k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Y) root.confirmAccept()
           else if (k === Qt.Key_Escape || k === Qt.Key_N) root.confirmCancel()
@@ -957,6 +1056,7 @@ Item {
           else if (k === Qt.Key_Left || k === Qt.Key_H) root.moveBoot(-1, 0)
           else if (k === Qt.Key_Right || k === Qt.Key_L) root.moveBoot(1, 0)
           else if (k === Qt.Key_Return || k === Qt.Key_Enter) root.activateBoot()
+          else if (k === Qt.Key_E) root.editBoot()
           else if (k === Qt.Key_D) root.deploy()
           else if (k === Qt.Key_X || k === Qt.Key_Delete) root.deleteCurrentLoadout()
           else return
@@ -998,14 +1098,25 @@ Item {
       MouseArea { anchors.fill: content; onClicked: {} }
 
       // ---- Save prompt -------------------------------------------------
+      // Two faces: a chooser of the saved loadouts with NEW at its head,
+      // and the name input NEW leads to.
       Item {
         id: prompt
         anchors.fill: parent
         visible: root.promptOpen
         z: 10
         onVisibleChanged: {
-          if (visible) { promptInput.text = ""; promptInput.forceActiveFocus() }
+          if (!visible) { keyCatcher.forceActiveFocus(); return }
+          if (root.promptMode === "name") { promptInput.text = ""; promptInput.forceActiveFocus() }
           else keyCatcher.forceActiveFocus()
+        }
+        Connections {
+          target: root
+          function onPromptModeChanged() {
+            if (!root.promptOpen) return
+            if (root.promptMode === "name") { promptInput.text = ""; promptInput.forceActiveFocus() }
+            else keyCatcher.forceActiveFocus()
+          }
         }
 
         // Scrim: opaque-safe because it is a nested child, but keep it
@@ -1050,14 +1161,74 @@ Item {
 
             Text {
               width: parent.width
-              text: "Records the fitting as it stands — staged choices included — so it can be equipped again in one move."
+              text: root.promptMode === "name"
+                ? "Records the fitting as it stands — staged choices included — under a new name."
+                : "Records the fitting as it stands — staged choices included. Save it over a loadout, or as a new one."
               color: root.muted
               font.family: root.uiFont
               font.pixelSize: Style.font.bodySmall
               wrapMode: Text.WordWrap
             }
 
+            // The chooser: NEW, then every saved loadout, newest first.
+            Column {
+              visible: root.promptMode === "choose"
+              width: parent.width
+              spacing: Style.space(6)
+
+              Repeater {
+                model: root.promptOpen ? [{ id: "", name: "NEW LOADOUT", meta: "under a name you give it", isNew: true }].concat(root.savedLoadouts) : []
+                delegate: TechFrame {
+                  id: choice
+                  required property var modelData
+                  required property int index
+                  readonly property bool isCurrent: choice.index === root.promptIndex
+                  readonly property bool isOrigin: !modelData.isNew && root.staged["loadouts"] === modelData.id
+                  width: parent.width
+                  height: Style.space(40)
+                  chamfer: Style.space(8)
+                  cuts: ["tr", "bl"]
+                  fill: isCurrent ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, Style.selectedFillAlpha) : root.backdrop
+                  stroke: isCurrent ? root.accent : choiceMouse.containsMouse ? root.fg : root.line
+                  dashed: modelData.isNew === true
+                  brackets: isCurrent
+                  bracketColor: root.accent
+                  bracketLength: Style.space(9)
+                  bracketWidth: 2
+                  bracketInset: 2
+
+                  Text {
+                    id: choiceName
+                    anchors { left: parent.left; leftMargin: Style.space(14); verticalCenter: parent.verticalCenter }
+                    text: choice.modelData.isNew ? "󰐕  " + choice.modelData.name : choice.modelData.name
+                    color: choice.isCurrent ? root.accent : root.fg
+                    font.family: root.uiFont
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                  }
+                  Text {
+                    anchors { left: choiceName.right; leftMargin: Style.space(12); right: parent.right; rightMargin: Style.space(14); verticalCenter: parent.verticalCenter }
+                    horizontalAlignment: Text.AlignRight
+                    elide: Text.ElideLeft
+                    text: choice.isOrigin ? "THIS FITTING CAME FROM HERE" : (choice.modelData.meta || "")
+                    color: choice.isOrigin ? root.warn : root.muted
+                    font.family: root.uiFont
+                    font.pixelSize: Style.font.caption
+                    font.letterSpacing: choice.isOrigin ? 1.5 : 0
+                  }
+                  MouseArea {
+                    id: choiceMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: { root.promptIndex = choice.index; root.promptAccept() }
+                  }
+                }
+              }
+            }
+
             TechFrame {
+              visible: root.promptMode === "name"
               width: parent.width
               height: Style.space(38)
               chamfer: Style.space(8)
@@ -1076,8 +1247,8 @@ Item {
                 clip: true
                 maximumLength: 40
                 Keys.onPressed: function(event) {
-                  if (event.key === Qt.Key_Escape) { root.promptOpen = false; event.accepted = true }
-                  else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { root.saveLoadout(promptInput.text); event.accepted = true }
+                  if (event.key === Qt.Key_Escape) { root.promptBack(); event.accepted = true }
+                  else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { root.promptAccept(); event.accepted = true }
                 }
 
                 Text {
@@ -1093,7 +1264,9 @@ Item {
             }
 
             Text {
-              text: "ENTER  save       ESC  cancel"
+              text: root.promptMode === "name"
+                ? "ENTER  save       ESC  " + (root.savedLoadouts.length > 0 ? "back" : "cancel")
+                : "↑↓  choose       ENTER  save       ESC  cancel"
               color: root.muted
               font.family: root.uiFont
               font.pixelSize: Style.font.caption
@@ -1410,14 +1583,14 @@ Item {
                 // room, the way the reference spaces slots around the body,
                 // but never so far that they stop reading as one list.
                 readonly property int count: root.visibleSlots.length
-                readonly property real minSpacing: Style.space(root.compact ? 16 : 24)
+                readonly property real minSpacing: root.slotMinSpacing
                 readonly property real slotHeights: {
                   var h = 0
                   for (var i = 0; i < children.length; i++) if (children[i].slotDef) h += children[i].implicitHeight
                   return h
                 }
                 spacing: count > 1
-                  ? Math.max(minSpacing, Math.min(Style.space(64), (slotScroll.height - slotHeights) / count))
+                  ? Math.max(minSpacing, Math.min(root.slotMaxSpacing, (slotScroll.height - slotHeights) / count))
                   : 0
 
                 Repeater {
@@ -1473,8 +1646,9 @@ Item {
               ? [["D", "deploy"], ["S", "save loadout"], ["ESC", "back"]]
               : [["S", "save"], ["ESC", "back"]]
             if (root.bootOpen) {
-              var boot = [["←→↑↓", "navigate"], ["ENTER", root.bootIndex < 0 ? "equip" : "fit + equip"]]
-              if (root.bootIndex >= 0) boot.push(["X", "delete"])
+              var boot = [["←→↑↓", "navigate"]]
+              if (root.bootIndex < 0) boot.push(["ENTER", "equip"])
+              else boot = boot.concat([["ENTER", "fit"], ["E", "edit"], ["X", "delete"]])
               if (root.dirty) boot.push(["D", "deploy"])
               return boot.concat([["ESC", root.dirty ? "discard" : "close"]])
             }

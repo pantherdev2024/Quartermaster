@@ -3,13 +3,16 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import qs.Commons
 
-// One equipment slot: a header rule with the slot's glyph, label and count,
-// then the inventory row — an angled frame with a heavy accent edge when the
-// cursor is on it. The selected cell wears corner brackets; an equipped cell
-// carries a green tag bar along its foot.
+// One equipment slot: a single row. An angled frame, with a heavy accent
+// edge when the cursor is on it, holds the slot's glyph, name and count in a
+// block at its start and the inventory cells after them. The selected cell
+// wears corner brackets; an equipped cell carries a green tag bar along its
+// foot. One row per slot, the same on every screen, is what lets a category
+// of eight sit in a laptop panel's column without scrolling and keeps the
+// cells at full size on a desktop.
 //
 // A multi-select slot has no row to browse: its stock is a whole arrangement,
-// laid out in the workbench. It gets a button that opens it instead.
+// laid out in the workbench. Its row is a button that opens it instead.
 Item {
   id: root
 
@@ -17,8 +20,7 @@ Item {
   property var host: null
 
   readonly property var items: host ? host.itemsFor(slotDef.id) : []
-  // The dock's NEW cell is an action, not stock.
-  readonly property int stockCount: items.filter(function(i) { return !i.isNew }).length
+  readonly property int stockCount: items.length
   readonly property int selected: host ? host.selectedIndexFor(slotDef.id) : 0
   readonly property bool focused: host && host.currentSlot && host.currentSlot.id === slotDef.id
   // Fitted: the slot holds a change that has not been deployed.
@@ -34,6 +36,10 @@ Item {
   readonly property string uiFont: host ? host.uiFont : Style.font.menuFamily
 
   readonly property int cellSize: host ? host.cellSize : Style.space(64)
+  readonly property real labelWidth: host ? host.slotLabelWidth : Style.space(140)
+  readonly property real rowHeight: cellSize + Style.space(14)
+  // Where the cells start: after the label block and its divider.
+  readonly property real cellsStart: Style.space(12) + labelWidth + Style.space(8)
   // The row never grows past the host's cell cap, even in a wider column:
   // past that the cursor cycles rather than the row stretching.
   readonly property real rowWidth: host ? Math.min(width, host.slotRowWidth) : width
@@ -46,69 +52,12 @@ Item {
   Column {
     id: column
     width: root.rowWidth
-    spacing: Style.space(6)
-
-    // ---- Header rule ---------------------------------------------------
-    Item {
-      width: parent.width
-      height: Style.space(22)
-
-      Text {
-        id: glyph
-        anchors.left: parent.left
-        anchors.verticalCenter: parent.verticalCenter
-        width: Style.font.icon + Style.space(6)
-        text: root.slotDef.icon || ""
-        color: root.focused ? root.accent : root.muted
-        font.family: root.uiFont
-        font.pixelSize: Style.font.icon
-      }
-
-      Text {
-        id: label
-        anchors.left: glyph.right
-        anchors.verticalCenter: parent.verticalCenter
-        text: root.slotDef.label || ""
-        color: root.focused ? root.accent : root.fg
-        font.family: root.uiFont
-        font.pixelSize: Style.font.body
-        font.bold: true
-        font.letterSpacing: 2.5
-      }
-
-      // The rule runs from the label to the count, thicker under the cursor.
-      Rectangle {
-        anchors.left: label.right
-        anchors.leftMargin: Style.space(10)
-        anchors.right: count.left
-        anchors.rightMargin: Style.space(10)
-        anchors.verticalCenter: parent.verticalCenter
-        height: 1
-        color: root.focused ? root.accent : root.line
-        opacity: root.focused ? 0.8 : 1
-      }
-
-      Text {
-        id: count
-        anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        text: root.stockCount === 0 ? "NONE"
-          : (root.staged ? "FITTED · " : "")
-            + (root.multi ? String(root.onCount).padStart(2, "0") + " / " : "")
-            + String(root.stockCount).padStart(2, "0")
-        color: root.staged ? root.warn : root.muted
-        font.family: root.uiFont
-        font.pixelSize: Style.font.caption
-        font.bold: root.staged
-        font.letterSpacing: 1.5
-      }
-    }
 
     // ---- Workbench button (multi-select slots) ---------------------------
     TechFrame {
       visible: root.multi
       width: parent.width
-      height: Style.space(46)
+      height: root.rowHeight
       chamfer: Style.space(10)
       fill: root.host ? (root.focused || openMouse.containsMouse ? root.host.paneBgFocused : root.host.paneBg) : "transparent"
       stroke: root.focused ? root.accent : (openMouse.containsMouse ? root.fg : root.line)
@@ -117,8 +66,10 @@ Item {
       edgeColor: root.staged ? root.warn : (root.focused ? root.accent : root.line)
       edgeWidth: root.focused ? Style.space(4) : Style.space(2)
 
+      SlotLabel {}
+
       Row {
-        anchors { left: parent.left; leftMargin: Style.space(16); verticalCenter: parent.verticalCenter }
+        anchors { left: parent.left; leftMargin: root.cellsStart + Style.space(4); verticalCenter: parent.verticalCenter }
         spacing: Style.space(8)
 
         Text {
@@ -129,7 +80,7 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
         }
         Text {
-          text: "OPEN WORKBENCH"
+          text: "WORKBENCH"
           color: root.focused ? root.accent : root.fg
           font.family: root.uiFont
           font.pixelSize: Style.font.caption
@@ -144,8 +95,10 @@ Item {
         spacing: Style.space(10)
 
         // What the fitting holds, and how it differs from the live bar —
-        // the tag bars the cells used to carry, said in one line.
+        // the tag bars the cells used to carry, said in one line. The
+        // compact row has no room for it; the character's tag says the same.
         Text {
+          visible: root.host ? !root.host.compact : true
           text: root.host ? root.host.barModsSummary : ""
           color: root.staged ? root.warn : root.muted
           font.family: root.uiFont
@@ -195,7 +148,7 @@ Item {
     TechFrame {
       visible: !root.multi
       width: parent.width
-      height: root.cellSize + Style.space(14)
+      height: root.rowHeight
       chamfer: Style.space(10)
       fill: root.host ? (root.focused ? root.host.paneBgFocused : root.host.paneBg) : "transparent"
       stroke: root.focused ? root.accent : root.line
@@ -204,10 +157,12 @@ Item {
       edgeColor: root.focused ? root.accent : root.line
       edgeWidth: root.focused ? Style.space(4) : Style.space(2)
 
+      SlotLabel {}
+
       ListView {
         id: list
         anchors { fill: parent; margins: Style.space(7) }
-        anchors.leftMargin: Style.space(12)
+        anchors.leftMargin: root.cellsStart
         orientation: ListView.Horizontal
         spacing: Style.space(8)
         clip: true
@@ -231,11 +186,7 @@ Item {
           required property int index
           required property var modelData
 
-          // Dock cards are wide: thumbnail plus a name and a line of meta.
-          readonly property bool wide: root.slotDef.wide === true
-          readonly property bool isNew: cell.modelData.isNew === true
-
-          width: cell.wide ? Style.space(200) : root.cellSize
+          width: root.cellSize
           height: list.height
 
           readonly property bool isSelected: cell.index === root.selected
@@ -251,7 +202,6 @@ Item {
               : (root.host ? root.host.paneBgFocused : "transparent")
             stroke: cell.isSelected ? root.accent : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.18)
             strokeWidth: 1
-            dashed: cell.isNew
             brackets: cell.isSelected
             bracketColor: root.accent
             bracketLength: Style.space(9)
@@ -271,7 +221,7 @@ Item {
 
           Image {
             anchors { top: parent.top; bottom: parent.bottom; left: parent.left; margins: Style.space(5) }
-            width: cell.wide ? height : parent.width - Style.space(10)
+            width: parent.width - Style.space(10)
             source: cell.thumbnail
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
@@ -286,59 +236,9 @@ Item {
           readonly property string glyph: cell.modelData.icon || ""
           readonly property string tag: cell.modelData.short || ""
 
-          // Wide card text: name and meta beside the thumbnail.
-          Column {
-            visible: cell.wide && !cell.isNew
-            anchors {
-              left: parent.left; leftMargin: (cell.thumbnail.length > 0 ? parent.height : Style.space(5)) + Style.space(6)
-              right: parent.right; rightMargin: Style.space(10)
-              verticalCenter: parent.verticalCenter
-            }
-            spacing: Style.space(3)
-            Text {
-              width: parent.width
-              text: cell.modelData.name || ""
-              color: cell.isSelected ? root.accent : root.fg
-              font.family: root.uiFont
-              font.pixelSize: Style.font.body
-              font.bold: true
-              elide: Text.ElideRight
-            }
-            Text {
-              width: parent.width
-              text: cell.modelData.meta || ""
-              color: root.muted
-              font.family: root.uiFont
-              font.pixelSize: Style.font.caption
-              elide: Text.ElideRight
-            }
-          }
-
-          Row {
-            visible: cell.isNew
-            anchors.centerIn: parent
-            spacing: Style.space(8)
-            Text {
-              text: "󰐕"
-              color: cell.isSelected ? root.accent : root.muted
-              font.family: root.uiFont
-              font.pixelSize: Style.font.iconLarge
-              anchors.verticalCenter: parent.verticalCenter
-            }
-            Text {
-              text: "NEW LOADOUT"
-              color: cell.isSelected ? root.accent : root.muted
-              font.family: root.uiFont
-              font.pixelSize: Style.font.caption
-              font.bold: true
-              font.letterSpacing: 2
-              anchors.verticalCenter: parent.verticalCenter
-            }
-          }
-
           Text {
             anchors.centerIn: parent
-            visible: cell.thumbnail.length === 0 && !cell.wide
+            visible: cell.thumbnail.length === 0
             text: cell.isFont ? "Aa"
               : cell.glyph ? cell.glyph
               : cell.tag ? cell.tag
@@ -391,6 +291,61 @@ Item {
         font.pixelSize: Style.font.caption
         font.letterSpacing: 2
       }
+    }
+  }
+
+  // The slot's glyph, name and count at the start of its row, in the same
+  // caption the character's tags use. FITTED takes the count line in the
+  // warning colour; a multi slot counts what is on over what there is.
+  component SlotLabel: Item {
+    id: block
+    anchors { left: parent.left; leftMargin: Style.space(12); top: parent.top; bottom: parent.bottom }
+    width: root.labelWidth
+
+    Text {
+      id: inlineGlyph
+      anchors.left: parent.left
+      anchors.verticalCenter: parent.verticalCenter
+      width: Style.font.icon + Style.space(6)
+      text: root.slotDef.icon || ""
+      color: root.focused ? root.accent : root.muted
+      font.family: root.uiFont
+      font.pixelSize: Style.font.icon
+    }
+    Column {
+      anchors { left: inlineGlyph.right; right: divider.left; rightMargin: Style.space(8) }
+      anchors.verticalCenter: parent.verticalCenter
+      spacing: Style.space(3)
+      Text {
+        width: parent.width
+        text: root.slotDef.label || ""
+        color: root.focused ? root.accent : root.fg
+        font.family: root.uiFont
+        font.pixelSize: Style.font.caption
+        font.bold: true
+        font.letterSpacing: 2
+        elide: Text.ElideRight
+      }
+      Text {
+        width: parent.width
+        text: root.stockCount === 0 ? "NONE"
+          : root.staged ? "FITTED"
+          : root.multi ? String(root.onCount).padStart(2, "0") + " / " + String(root.stockCount).padStart(2, "0")
+          : String(root.stockCount).padStart(2, "0")
+        color: root.staged ? root.warn : root.muted
+        font.family: root.uiFont
+        font.pixelSize: Style.font.caption
+        font.letterSpacing: 1.5
+        elide: Text.ElideRight
+      }
+    }
+    Rectangle {
+      id: divider
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      width: 1
+      height: parent.height * 0.5
+      color: root.focused ? root.accent : root.line
     }
   }
 }
