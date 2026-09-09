@@ -11,12 +11,16 @@ import "BarLayout.js" as BarLayout
 
 // Quartermaster — an RPG equip screen for Omarchy.
 //
-// Equipment is grouped into categories, picked from a row of glyph pills
-// across the top of the left column. Below the pills, the active category's
-// slots stack down the left, with a detail card for the item under the
-// cursor at the foot of the column; the right column shows a miniature mock
-// desktop painted in whatever is currently staged. Across the bottom runs a
-// row of key prompts for whatever the cursor can do from where it stands.
+// It opens on the boot screen: the character as it stands on a card to the
+// left, which is the way into the equip screen, and the saved loadouts as a
+// grid to the right. On the equip screen, equipment is grouped into
+// categories, picked from a row of glyph pills across the top of the left
+// column. Below the pills, the active category's slots stack down the left,
+// with a detail card for the item under the cursor at the foot of the
+// column; the right column shows a miniature mock desktop painted in
+// whatever is currently staged. Across the bottom runs a row of key prompts
+// for whatever the cursor can do from where it stands. ESC steps back to the
+// boot screen, and from there out.
 //
 // Three steps, on purpose. Browsing PREVIEWS: the character repaints and
 // nothing else moves. ENTER FITS the preview into the slot: the fitting is
@@ -41,7 +45,6 @@ Item {
     var counts = {}, m = 0
     for (var i = 0; i < slotDefs.length; i++) {
       var c = slotDefs[i].cat
-      if (c === "*") continue
       counts[c] = (counts[c] || 0) + 1
       m = Math.max(m, counts[c])
     }
@@ -115,13 +118,8 @@ Item {
     { id: "terminal",       cat: "cyberware", label: "TERMINAL",     icon: "󰆍", order: 50, apply: ["omarchy-default-terminal"] },
     { id: "editor",         cat: "cyberware", label: "EDITOR",       icon: "󰅩", order: 51, apply: ["omarchy-default-editor"] },
     { id: "browser",        cat: "cyberware", label: "BROWSER",      icon: "󰖟", order: 52, apply: ["omarchy-default-browser"] },
-    { id: "agent",          cat: "cyberware", label: "AGENT",        icon: "󰚩", order: 53, apply: [pluginDir + "/agent-set.sh"] },
-    // Saved loadouts: present in every category as the last slot. No apply
-    // command of its own — picking one stages every slot it recorded.
-    { id: "loadouts",       cat: "*",         label: "SAVED LOADOUTS", icon: "󰆓", apply: null, wide: true }
+    { id: "agent",          cat: "cyberware", label: "AGENT",        icon: "󰚩", order: 53, apply: [pluginDir + "/agent-set.sh"] }
   ]
-  readonly property int loadoutsSlotIndex: slotDefs.length - 1
-  readonly property bool onLoadouts: currentSlot.id === "loadouts"
 
   // ---- Bar mods --------------------------------------------------------
   // The slot's value is the whole bar in order, "left:a,b|center:c|right:d",
@@ -278,15 +276,76 @@ Item {
   // state to keep in sync.
   property int slotIndex: 0
   readonly property var currentSlot: slotDefs[Math.max(0, Math.min(slotDefs.length - 1, slotIndex))]
-  // The dock belongs to no category, so while the cursor sits on it the tabs
-  // keep showing whichever category the cursor came from.
-  property string pinnedCategory: "outfit"
   onSlotIndexChanged: {
-    if (currentSlot.cat !== "*") pinnedCategory = currentSlot.cat
     root.workbenchOpen = false
     root.clearPreview()
   }
-  readonly property string currentCategory: currentSlot.cat === "*" ? pinnedCategory : currentSlot.cat
+  readonly property string currentCategory: currentSlot.cat
+
+  // ---- Boot screen -----------------------------------------------------
+  // Where the screen opens: the character card and the saved loadouts. One
+  // cursor for both, kept as an id rather than an index so it survives the
+  // rescan after a save or delete: "" is the card, anything else a saved
+  // loadout. bootItems is the grid's model: the saved loadouts alone, since
+  // nothing is saved from this screen (that is the equip screen's S).
+  property bool bootOpen: true
+  property string bootCursorId: ""
+  readonly property int bootColumns: 3
+  readonly property var bootItems: root.itemsFor("loadouts").filter(function(i) { return !i.isNew })
+  readonly property int bootIndex: {
+    if (root.bootCursorId === "") return -1
+    var items = root.bootItems
+    for (var i = 0; i < items.length; i++) if (items[i].id === root.bootCursorId) return i
+    return -1
+  }
+
+  // ← → walk from the card into the grid and along it; ↑ ↓ move by row and
+  // stop at the grid's edges. Left from the first column comes back to the card.
+  function moveBoot(dx, dy) {
+    var items = root.bootItems
+    var i = root.bootIndex
+    if (dy !== 0) {
+      if (i < 0) return
+      var down = i + dy * root.bootColumns
+      if (down < 0 || down >= items.length) return
+      i = down
+    } else if (i < 0) {
+      if (dx < 0 || items.length === 0) return
+      i = 0
+    } else if (dx < 0 && i % root.bootColumns === 0) {
+      i = -1
+    } else {
+      var along = i + dx
+      if (along < 0 || along >= items.length) return
+      i = along
+    }
+    root.bootCursorId = i < 0 ? "" : items[i].id
+  }
+
+  // ENTER, or a click: the card continues to the equip screen; a saved
+  // loadout fits every slot it recorded and continues, so the character
+  // shows the fitting and D deploys it.
+  function bootPick(id) {
+    if (root.promptOpen || root.confirmOpen || root.applying) return
+    root.bootCursorId = id
+    if (id === "") { root.enterEquip(); return }
+    root.previewLoadout(id)
+    if (root.previewSlot === "") return
+    root.fitPreview()
+    root.enterEquip()
+  }
+  function activateBoot() { root.bootPick(root.bootCursorId) }
+
+  function enterEquip() {
+    root.bootOpen = false
+  }
+  // ESC on the equip screen. The fitting stays as it is; the boot screen's
+  // card shows it, and the status pill still offers to deploy it.
+  function backToBoot() {
+    root.workbenchOpen = false
+    root.clearPreview()
+    root.bootOpen = true
+  }
   readonly property int currentCategoryIndex: {
     for (var i = 0; i < categories.length; i++)
       if (categories[i].id === currentCategory) return i
@@ -426,12 +485,14 @@ Item {
   readonly property real previewFontScale: Number(root.selectedId("textSize", "12")) / 12
   readonly property string previewTerminal: root.selectedId("terminal", "")
 
-  // True when anything is staged that differs from the live system. The
-  // loadouts key is cursor state, not a change.
-  readonly property bool dirty: {
-    for (var k in root.staged) if (k !== "loadouts" && root.staged[k]) return true
-    return false
+  // How many slots are fitted but not deployed. The loadouts key is cursor
+  // state, not a change. dirty is the same question as a yes or no.
+  readonly property int stagedCount: {
+    var n = 0
+    for (var k in root.staged) if (k !== "loadouts" && root.staged[k]) n++
+    return n
   }
+  readonly property bool dirty: stagedCount > 0
 
   // ---- Preview and fit ---------------------------------------------------
   function isLiveValue(slotId, id) {
@@ -466,7 +527,6 @@ Item {
   }
 
   function clearPreview() {
-    root.hoverOwnsPreview = false
     if (root.previewSlot === "") return
     root.preview = ({})
     root.previewSlot = ""
@@ -475,19 +535,8 @@ Item {
   // ENTER: the preview becomes part of the fitting.
   function fitPreview() {
     if (root.promptOpen || root.confirmOpen || root.applying) return
-    if (root.previewSlot === "") {
-      // Nothing previewed. On the loadouts row ENTER takes the card under
-      // the cursor; on a slot the cursor already sits on the fitted item.
-      if (!root.onLoadouts) return
-      var sel = root.selectedItem("loadouts")
-      if (!sel) return
-      if (sel.isNew) { root.openSavePrompt(); return }
-      root.previewLoadout(sel.id)
-    }
-    if (root.previewSlot === "loadouts" && root.preview["loadouts"] === "__new") {
-      root.openSavePrompt()
-      return
-    }
+    // Nothing previewed: on a slot the cursor already sits on the fitted item.
+    if (root.previewSlot === "") return
     var next = {}
     for (var k in root.staged) next[k] = root.staged[k]
     if (root.previewSlot === "loadouts") {
@@ -504,25 +553,6 @@ Item {
     root.staged = next
     root.clearPreview()
     root.statusText = ""
-  }
-
-  // The loadout cards: hovering previews and leaving puts things back,
-  // unless the keyboard already had a preview going; clicking moves the
-  // cursor onto the card.
-  property bool hoverOwnsPreview: false
-  function hoverLoadout(loadoutId) {
-    if (root.promptOpen || root.confirmOpen || root.applying) return
-    var owns = root.previewSlot === "" || root.hoverOwnsPreview
-    root.previewLoadout(loadoutId)
-    root.hoverOwnsPreview = owns
-  }
-  function unhoverLoadout() {
-    if (root.hoverOwnsPreview) root.clearPreview()
-  }
-  function pickLoadout(loadoutId) {
-    if (root.promptOpen || root.confirmOpen || root.applying) return
-    root.slotIndex = root.loadoutsSlotIndex
-    root.previewLoadout(loadoutId)
   }
 
   // The fitting as shown: previewed where previewed, fitted where fitted,
@@ -556,7 +586,7 @@ Item {
     root.statusText = "saving…"
   }
 
-  // Deleting asks first: X on the row, or the card's own delete button.
+  // Deleting asks first: X on the boot screen, or the card's own delete button.
   property string deleteTargetId: ""
   property string deleteTargetName: ""
   function requestDeleteLoadout(loadoutId) {
@@ -572,13 +602,18 @@ Item {
     }
   }
   function deleteCurrentLoadout() {
-    if (!root.onLoadouts) return
-    var item = root.selectedItem("loadouts")
-    if (!item || item.isNew) return
+    if (!root.bootOpen || root.bootIndex < 0) return
+    var item = root.bootItems[root.bootIndex]
+    if (!item) return
     root.requestDeleteLoadout(item.id)
   }
   function deleteLoadoutNow() {
     if (!root.deleteTargetId) return
+    // Step the boot cursor off the card that is about to go.
+    if (root.bootCursorId === root.deleteTargetId) {
+      var i = root.bootIndex
+      root.bootCursorId = i > 0 ? root.bootItems[i - 1].id : ""
+    }
     deleteProc.command = [root.pluginDir + "/loadouts.sh", "delete", root.deleteTargetId]
     deleteProc.running = true
     var next = {}
@@ -639,7 +674,7 @@ Item {
   function moveSlot(delta) {
     var ids = []
     for (var i = 0; i < root.slotDefs.length; i++)
-      if (root.slotDefs[i].cat === root.currentCategory || root.slotDefs[i].cat === "*") ids.push(i)
+      if (root.slotDefs[i].cat === root.currentCategory) ids.push(i)
     var pos = ids.indexOf(root.slotIndex)
     if (pos < 0) pos = 0
     root.slotIndex = ids[(pos + delta + ids.length) % ids.length]
@@ -693,9 +728,10 @@ Item {
     root.staged = ({})
     root.preview = ({})
     root.previewSlot = ""
-    root.hoverOwnsPreview = false
     root.confirmAction = ""
     root.workbenchOpen = false
+    root.bootOpen = true
+    root.bootCursorId = ""
     root.slotIndex = 0
     root.modsCursor = 0
     root.statusText = ""
@@ -797,7 +833,7 @@ Item {
       next["loadouts"] = root.pendingLoadoutId
       root.staged = next
       root.clearPreview()
-      root.slotIndex = root.loadoutsSlotIndex
+      root.bootCursorId = root.pendingLoadoutId
       scanProc.running = true
     }
   }
@@ -914,8 +950,21 @@ Item {
           event.accepted = true
           return
         }
+        if (root.bootOpen) {
+          if (k === Qt.Key_Escape) root.requestClose()
+          else if (k === Qt.Key_Up || k === Qt.Key_K) root.moveBoot(0, -1)
+          else if (k === Qt.Key_Down || k === Qt.Key_J) root.moveBoot(0, 1)
+          else if (k === Qt.Key_Left || k === Qt.Key_H) root.moveBoot(-1, 0)
+          else if (k === Qt.Key_Right || k === Qt.Key_L) root.moveBoot(1, 0)
+          else if (k === Qt.Key_Return || k === Qt.Key_Enter) root.activateBoot()
+          else if (k === Qt.Key_D) root.deploy()
+          else if (k === Qt.Key_X || k === Qt.Key_Delete) root.deleteCurrentLoadout()
+          else return
+          event.accepted = true
+          return
+        }
         if (k === Qt.Key_Escape) {
-          root.requestClose()
+          root.backToBoot()
         } else if (k === Qt.Key_Up || k === Qt.Key_K) {
           root.moveSlot(-1)
         } else if (k === Qt.Key_Down || k === Qt.Key_J) {
@@ -1103,8 +1152,7 @@ Item {
               text: {
                 if (root.confirmAction === "delete")
                   return "Remove \"" + root.deleteTargetName + "\" from the saved loadouts. The desktop keeps whatever it is wearing."
-                var n = 0
-                for (var k in root.staged) if (k !== "loadouts" && root.staged[k]) n++
+                var n = root.stagedCount
                 return n + (n === 1 ? " slot is" : " slots are") + " fitted but not deployed. Leave without deploying?"
               }
               color: root.muted
@@ -1160,45 +1208,14 @@ Item {
             }
 
             Text {
-              text: "EQUIP SYSTEM // " + (root.workbenchOpen
-                ? "BAR MODS"
+              text: "EQUIP SYSTEM // " + (root.bootOpen ? "STANDBY"
+                : root.workbenchOpen ? "BAR MODS"
                 : root.categories[root.currentCategoryIndex].label)
               color: root.muted
               font.family: root.uiFont
               font.pixelSize: Style.font.caption
               font.letterSpacing: 2.5
               anchors.verticalCenter: parent.verticalCenter
-            }
-          }
-
-          // The saved loadouts, across the top centre. The workbench takes
-          // the whole body and its own row is unreachable there, so it goes.
-          Item {
-            visible: !root.workbenchOpen
-            anchors {
-              left: titleRow.right; leftMargin: Style.space(40)
-              right: statusPill.left; rightMargin: Style.space(40)
-              top: parent.top; bottom: parent.bottom
-            }
-
-            Text {
-              id: dockKicker
-              anchors { top: parent.top; horizontalCenter: parent.horizontalCenter }
-              text: {
-                var saved = ((root.inventory && root.inventory.loadouts) || []).length
-                return "SAVED LOADOUTS  " + String(saved).padStart(2, "0")
-              }
-              color: root.onLoadouts ? root.accent : root.muted
-              font.family: root.uiFont
-              font.pixelSize: Style.font.caption
-              font.bold: root.onLoadouts
-              font.letterSpacing: 2.5
-            }
-
-            LoadoutDock {
-              anchors { top: dockKicker.bottom; topMargin: Style.space(6); left: parent.left; right: parent.right }
-              height: implicitHeight
-              host: root
             }
           }
 
@@ -1267,7 +1284,7 @@ Item {
           // -- Left column: category tabs, then the slot list -----------
           Item {
             id: leftColumn
-            visible: !root.workbenchOpen
+            visible: !root.bootOpen && !root.workbenchOpen
             width: body.leftWidth
             anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
 
@@ -1416,6 +1433,16 @@ Item {
             }
           }
 
+          // -- The boot screen: where every open starts ------------------
+          BootScreen {
+            visible: root.bootOpen
+            anchors {
+              left: parent.left; right: parent.right
+              top: parent.top; bottom: hints.top; bottomMargin: Style.space(12)
+            }
+            host: root
+          }
+
           // -- The workbench: a takeover, not a panel ---------------------
           // BAR MODS edits the whole bar, so it gets the whole body: the slot
           // column and the character stand down while it is open.
@@ -1432,7 +1459,7 @@ Item {
           // -- Right column: the character and its fittings --------------
           CharacterView {
             id: character
-            visible: !root.workbenchOpen
+            visible: !root.bootOpen && !root.workbenchOpen
             anchors {
               left: leftColumn.right; leftMargin: body.gutter
               right: parent.right; top: parent.top; bottom: hints.top; bottomMargin: Style.space(12)
@@ -1442,18 +1469,21 @@ Item {
 
           // Game-style key prompts: keycap + action.
           readonly property var hintModel: {
-            var sel = root.onLoadouts ? root.selectedItem("loadouts") : null
             var tail = root.dirty
-              ? [["D", "deploy"], ["S", "save loadout"], ["ESC", "discard"]]
-              : [["S", "save"], ["ESC", "close"]]
+              ? [["D", "deploy"], ["S", "save loadout"], ["ESC", "back"]]
+              : [["S", "save"], ["ESC", "back"]]
+            if (root.bootOpen) {
+              var boot = [["←→↑↓", "navigate"], ["ENTER", root.bootIndex < 0 ? "equip" : "fit + equip"]]
+              if (root.bootIndex >= 0) boot.push(["X", "delete"])
+              if (root.dirty) boot.push(["D", "deploy"])
+              return boot.concat([["ESC", root.dirty ? "discard" : "close"]])
+            }
             if (root.workbenchOpen) {
               var wb = [["←→", "along the bar"], ["↑↓", "inventory"], ["1 2 3", "to section"],
                         ["⌫", "bench"], ["⇧←→", "nudge"], ["ENTER", "fit"]]
               if (!root.compact) wb.push(["D", "fit + deploy"])
               return wb.concat([["ESC", "cancel"]])
             }
-            if (sel && sel.isNew) return [["ENTER", "save fitting"], ["ESC", root.dirty ? "discard" : "close"]]
-            if (root.onLoadouts) return [["←→", "browse"], ["ENTER", "fit loadout"]].concat(tail)
             if (root.currentSlot.multi) return [["TAB", "category"], ["↑↓", "slot"], ["ENTER", "open workbench"]].concat(tail)
             if (root.previewing) return [["←→", "browse"], ["ENTER", "fit"]].concat(tail)
             return [["TAB", "category"], ["↑↓", "slot"], ["←→", "browse"], ["ENTER", "fit"]].concat(tail)
@@ -1461,7 +1491,8 @@ Item {
 
           Row {
             id: hints
-            anchors { horizontalCenter: character.horizontalCenter; bottom: parent.bottom }
+            anchors { bottom: parent.bottom }
+            anchors.horizontalCenter: root.bootOpen ? body.horizontalCenter : character.horizontalCenter
             spacing: root.compact ? Style.space(12) : Style.space(22)
 
             Repeater {

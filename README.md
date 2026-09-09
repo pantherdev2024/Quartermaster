@@ -104,18 +104,21 @@ row back out of your own config.
 
 - Summon it with the command above, or with whichever of the binding and the
   menu row you set up
+- It opens on the boot screen: the character on a card to the left, the
+  saved loadouts as a grid to the right. `← → ↑ ↓` move between them;
+  `ENTER` on the card continues to the equip screen, `ENTER` on a loadout
+  fits every slot it recorded and continues wearing it, and `X` (or the
+  cross on a card) deletes one, after asking
 - `TAB` / `SHIFT+TAB` (or `1` `2` `3`) switch equipment category
-- `↑ ↓` move between slots (the saved-loadouts row across the top is always
-  the last stop), `← →` browse that slot's inventory
+- `↑ ↓` move between slots, `← →` browse that slot's inventory
 - BAR MODS has no inventory to browse: `← →` do nothing there and `ENTER`
   opens its workbench, which takes over the screen
-- `ENTER` fits the item under the cursor into its slot (or fits a whole
-  saved loadout)
-- `D` deploys the fitting for real and closes the screen; clicking the pill
-  in the top corner does the same
-- `ESC` closes; if anything is fitted but not deployed it asks first
-- `S` saves the fitting on screen as a loadout, `X` (or the cross on a card)
-  deletes the selected one, after asking
+- `ENTER` fits the item under the cursor into its slot
+- `D` deploys the fitting for real and closes the screen, from either
+  screen; clicking the pill in the top corner does the same
+- `ESC` steps back from the equip screen to the boot screen and closes from
+  there; if anything is fitted but not deployed it asks first
+- `S` saves the fitting on screen as a loadout
 
 The screen opens on Hyprland's focused monitor. A summon payload can name an
 output instead, which is handy for scripting and screenshots:
@@ -266,17 +269,18 @@ argument. New slots appear in the character view's callouts automatically.
 
 ## Loadouts
 
-The row across the top centre holds saved loadouts, one small card each with
-the loadout's theme as its thumbnail and the name you gave it. A loadout
-records the fitting as shown on screen as a map of slot id to item id in
-`~/.local/share/omarchy/loadouts/<id>.json`. Hovering a card, or moving onto
-it with the keyboard, previews it on the character — its font, type size and
-bar at once, with its theme and wallpaper following on the fit the way those
-two slots do on their own; `ENTER` fits every slot it recorded that differs
-from what is live; `D` deploys. The card whose
-fitting the desktop is actually wearing is ringed. The nameplate under the
-character names the loadout it currently represents; a hand-picked change
-clears that until you save again.
+The boot screen's right pane holds the saved loadouts as a grid, three to a
+row, each card the loadout's theme as its thumbnail over the name you gave
+it. A loadout records the fitting as shown on
+screen as a map of slot id to item id in
+`~/.local/share/omarchy/loadouts/<id>.json`. Taking a card, with `ENTER` or
+a click, fits every slot it recorded that differs from what is live and
+continues to the equip screen wearing it, so the character shows the whole
+fitting — theme, wallpaper, font, type size and bar — and `D` deploys. The
+card whose fitting the desktop is actually wearing is ringed. The nameplate
+under the character, like the boot screen's card, names the loadout the
+fitting currently represents; a hand-picked change clears that until you
+save again.
 
 ## How it works
 
@@ -315,8 +319,9 @@ columns, so a tall column pushes it down instead of off the top.
 
 On the left, the item data panel is the first thing to go when the column is
 short: every slot shows before any description does. The inventory cells then
-shrink until the tallest category fits its column together with the dock, so no
-screen has to scroll a slot list; scrolling remains only as a last resort.
+shrink until the tallest category fits its column together with the item data
+panel, so no screen has to scroll a slot list; scrolling remains only as a
+last resort.
 
 ## Notes
 
@@ -340,7 +345,8 @@ manifest.json      overlay plugin declaration
 Loadout.qml        overlay entry: categories, slots, staging, loadouts, apply queue
 BarLayout.js       the bar layout: its string form, the workbench's edits, the commands
 CharacterView.qml  the character: viewport, callouts, leader lines, nameplate
-LoadoutDock.qml    the row of saved-loadout cards across the top
+BootScreen.qml     the boot screen: the character card and the loadout grid
+LoadoutGrid.qml    the saved loadouts as a grid, three to a row
 BarWorkbench.qml   the workbench: the bar as a rail, its sections as bins, an inventory
 BarRail.qml        a bar's widget tokens, drawn for the mock desktop and the rail
 MiniDesktop.qml    the miniature mock desktop

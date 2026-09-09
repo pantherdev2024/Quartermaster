@@ -4,8 +4,8 @@ import QtQuick
 import qs.Commons
 
 // The description panel: whatever the cursor is on, spelled out. A theme
-// shows its palette, a font its specimen, a saved loadout what it recorded,
-// and everything shows where it comes from and how it is applied.
+// shows its palette, a font its specimen, and everything shows where it
+// comes from and how it is applied.
 TechFrame {
   id: root
 
@@ -29,7 +29,6 @@ TechFrame {
     // from the button outside it, the slot describes itself.
     : slot.multi ? (inWorkbench ? "mod" : "workbench")
     : slot.id === "font" ? "font"
-    : slot.id === "loadouts" ? "loadout"
     : slot.id === "background" ? "background"
     : "plain"
 
@@ -44,12 +43,6 @@ TechFrame {
   readonly property string source: {
     if (kind === "workbench") return (host ? host.barModsSummary : "") + "  ·  ENTER opens the workbench"
     if (!item) return ""
-    if (item.isNew) return "S  or  ENTER here  ·  records the fitting as it stands"
-    if (kind === "loadout") {
-      var n = 0
-      for (var k in item.slots) n++
-      return n + " slots recorded  ·  " + String(item.savedAt || "").replace("T", " ").substring(0, 16)
-    }
     if (item.path) return item.path
     if (kind === "mod") return (host ? host.barModsSummary : "") + "  ·  omarchy plugin enable / disable  ·  omarchy bar move"
     if (slot.apply) return slot.apply.map(function(a) { return a.split("/").pop() }).join(" ") + "  " + item.id
@@ -115,7 +108,7 @@ TechFrame {
       elide: Text.ElideRight
     }
 
-    // Kind-specific line: swatches, specimen, or the loadout's recorded slots.
+    // Kind-specific line: swatches or specimen.
     Row {
       visible: root.kind === "theme" && root.palette.length > 0
       spacing: Style.space(3)
@@ -184,27 +177,6 @@ TechFrame {
       color: root.fg
       font.family: root.item ? root.item.id : root.uiFont
       font.pixelSize: Style.font.body
-      elide: Text.ElideRight
-    }
-
-    Text {
-      visible: root.kind === "loadout" && root.item && !root.item.isNew
-      width: parent.width
-      text: {
-        if (!root.item || !root.item.slots) return ""
-        var parts = []
-        for (var k in root.item.slots) {
-          var v = String(root.item.slots[k])
-          if (k === "background") v = v.split("/").pop().replace(/\.[^.]+$/, "")
-          parts.push(k.toUpperCase() + " " + v)
-        }
-        return parts.join("   ")
-      }
-      color: root.muted
-      font.family: root.uiFont
-      font.pixelSize: Style.font.caption
-      wrapMode: Text.Wrap
-      maximumLineCount: 1
       elide: Text.ElideRight
     }
 
