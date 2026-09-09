@@ -81,11 +81,15 @@ read the code before you enable it.
 omarchy plugin remove io.github.pantherdev2024.quartermaster
 ```
 
-That takes the plugin out of `~/.config/omarchy/plugins` and out of
-`shell.json`, and it undoes none of what you deployed. Every change Quartermaster
-makes it makes by running the ordinary Omarchy command, so a theme, font or
-default it applied stays applied exactly as if you had run that command
-yourself.
+That deletes the plugin from `~/.config/omarchy/plugins` and turns it off,
+and it undoes none of what you deployed. One thing it does not do is prune the
+plugin's settings record from the `plugins` array in `shell.json`; that entry
+is inert once the folder is gone, but if you want it tidy, take the object
+with this plugin's `id` out by hand.
+
+Every change Quartermaster makes it makes by running the ordinary Omarchy
+command, so a theme, font or default it applied stays applied exactly as if
+you had run that command yourself.
 
 Two directories are yours rather than the plugin's, so they are left where
 they are and a reinstall finds your loadouts again:
