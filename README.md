@@ -69,8 +69,8 @@ Quartermaster writes in three places of its own: saved loadouts under
 `~/.config/omarchy/defaults/agent`, written directly for the reason given
 under Categories and slots.
 
-None of this asks for root: there is no `sudo` or `pkexec` anywhere in the
-plugin, and Omarchy's installer never runs plugin code. What is true of every
+None of this asks for root: no sudo or pkexec is used anywhere in the plugin,
+and Omarchy's installer never runs plugin code. What is true of every
 Omarchy plugin is true of this one, though — it shares the long-running
 `omarchy-shell` process and runs unsandboxed with your user's permissions, so
 read the code before you enable it.
