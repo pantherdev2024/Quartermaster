@@ -7,7 +7,8 @@ import qs.Commons
 // each tile the loadout's theme as a thumbnail over the name you gave it,
 // the equipped one ringed. The cursor is the host's boot cursor, so the
 // keyboard and the pointer land on the same tiles: clicking one does what
-// ENTER does there, and the small cross on a tile deletes it (after asking).
+// ENTER does there (fits it), EDIT on a tile does what E does (fits it and
+// continues to the equip screen), and the cross deletes it (after asking).
 // Nothing is saved from here; that is the equip screen's S. The grid scrolls
 // once the rows outgrow the pane.
 Item {
@@ -154,11 +155,39 @@ Item {
           onClicked: if (root.host) root.host.bootPick(cell.modelData.id)
         }
 
+        // Edit: over the thumbnail's other corner, shown with the cross.
+        Rectangle {
+          visible: deleteButton.visible
+          anchors { left: parent.left; top: parent.top; leftMargin: Style.space(7); topMargin: Style.space(7) }
+          width: editText.implicitWidth + Style.space(12)
+          height: Style.space(20)
+          radius: Style.space(3)
+          color: root.host ? Qt.rgba(root.host.backdrop.r, root.host.backdrop.g, root.host.backdrop.b, 0.78) : "transparent"
+          Text {
+            id: editText
+            anchors.centerIn: parent
+            text: "EDIT"
+            color: editMouse.containsMouse ? root.accent : root.fg
+            font.family: root.uiFont
+            font.pixelSize: Style.font.caption
+            font.bold: true
+            font.letterSpacing: 1.5
+          }
+          MouseArea {
+            id: editMouse
+            anchors.fill: parent
+            anchors.margins: -Style.space(4)
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: if (root.host) root.host.bootEdit(cell.modelData.id)
+          }
+        }
+
         // Delete: a small cross over the thumbnail's corner, shown while the
         // pointer or the cursor is on the card. Asks before it does anything.
         Rectangle {
           id: deleteButton
-          visible: mouse.containsMouse || cell.isCursor || deleteMouse.containsMouse
+          visible: mouse.containsMouse || cell.isCursor || deleteMouse.containsMouse || editMouse.containsMouse
           anchors { right: parent.right; top: parent.top; rightMargin: Style.space(7); topMargin: Style.space(7) }
           width: Style.space(20)
           height: width

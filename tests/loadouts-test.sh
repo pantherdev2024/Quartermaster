@@ -51,6 +51,21 @@ done
 weird=$("$LOADOUTS" save '..' '{}')
 [[ $weird == loadout-* ]] || fail "unsluggable name should fall back to loadout-<epoch>, got $weird"
 
+# Saving with an id overwrites that loadout in place: same file, same id,
+# the new name and slots, a fresh time, and nothing new beside it.
+before=$("$LOADOUTS" list | jq 'length')
+sleep 1
+over=$("$LOADOUTS" save "Desk Setup v2" '{"theme":"gruvbox"}' desk-setup)
+equals "overwrite keeps the id" "$over" "desk-setup"
+equals "overwrite keeps the count" "$("$LOADOUTS" list | jq 'length')" "$before"
+equals "overwrite takes the new name" "$(jq -r '.name' "$DIR/desk-setup.json")" "Desk Setup v2"
+equals "overwrite takes the new slots" "$(jq -c '.slots' "$DIR/desk-setup.json")" '{"theme":"gruvbox"}'
+equals "overwritten is newest" "$("$LOADOUTS" list | jq -r '.[0].id')" "desk-setup"
+# An id that is not there, or not safe, is refused rather than created.
+"$LOADOUTS" save "Ghost" '{}' never-saved 2>/dev/null && fail "overwriting a missing id should fail"
+"$LOADOUTS" save "Escape" '{}' '../escape' 2>/dev/null && fail "an unsafe id should be refused"
+[[ ! -e "$DIR/never-saved.json" && ! -e "$DIR/../escape.json" ]] || fail "a refused overwrite wrote a file"
+
 # list is newest first, which is the order the dock draws.
 sleep 1
 "$LOADOUTS" save "Newest" '{}' >/dev/null

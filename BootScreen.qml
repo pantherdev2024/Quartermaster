@@ -167,8 +167,15 @@ Item {
           color: root.onCard ? root.accent : root.line
         }
         Item { width: 1; height: Style.space(6) }
+        // The kicker names the loadout the fitting represents, when it
+        // does, so the status line below has room to say what state it is in.
         Text {
-          text: "EQUIP SYSTEM"
+          width: parent.width
+          elide: Text.ElideRight
+          text: {
+            var name = root.host ? root.host.activeLoadoutName : ""
+            return name ? "LOADOUT  ·  " + name.toUpperCase() : "EQUIP SYSTEM"
+          }
           color: root.muted
           font.family: root.uiFont
           font.pixelSize: Style.font.caption
@@ -201,8 +208,7 @@ Item {
             if (!root.host) return ""
             var n = root.host.stagedCount
             if (n > 0) return n + (n === 1 ? " SLOT FITTED" : " SLOTS FITTED") + "  ·  D DEPLOYS"
-            var name = root.host.activeLoadoutName
-            return name ? "WEARING  " + name.toUpperCase() : "CURRENT CONFIGURATION"
+            return root.host.activeLoadoutName ? "EQUIPPED" : "CURRENT CONFIGURATION"
           }
           color: root.host && root.host.dirty ? root.warn : root.fg
           font.family: root.uiFont

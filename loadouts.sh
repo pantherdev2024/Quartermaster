@@ -2,9 +2,13 @@
 # Saved loadouts: one JSON file per loadout under the XDG data directory,
 # so they survive plugin updates and can be synced like any other user data.
 #
-#   loadouts.sh list                 -> JSON array, newest first
-#   loadouts.sh save <name> <slots>  -> writes the file, prints its id
+#   loadouts.sh list                      -> JSON array, newest first
+#   loadouts.sh save <name> <slots> [id]  -> writes the file, prints its id
 #   loadouts.sh delete <id>
+#
+# save with an id overwrites that loadout in place -- same id, the name
+# given, fresh slots and time -- which is how a fitting is saved back over
+# the loadout it came from instead of minting a new one beside it.
 #
 # <slots> is a JSON object of slot id -> item id, exactly what the screen
 # stages, so equipping a loadout is staging it and pressing ENTER.
@@ -52,8 +56,14 @@ case "${1:-}" in
   save)
     name="${2:?name required}"
     slots="${3:?slots json required}"
-    id="$(slug "$name")"
-    is_safe_id "$id" || id="loadout-$(date +%s)"
+    if [[ -n ${4:-} ]]; then
+      id="$4"
+      is_safe_id "$id" || { echo "refusing unsafe loadout id: $id" >&2; exit 2; }
+      [[ -f "$dir/$id.json" ]] || { echo "no such loadout to overwrite: $id" >&2; exit 1; }
+    else
+      id="$(slug "$name")"
+      is_safe_id "$id" || id="loadout-$(date +%s)"
+    fi
     jq -n --arg id "$id" --arg name "$name" --argjson slots "$slots" --arg savedAt "$(date -Is)" \
       '{id:$id, name:$name, slots:$slots, savedAt:$savedAt}' > "$dir/$id.json" || exit 1
     echo "$id"
