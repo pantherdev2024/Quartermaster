@@ -74,6 +74,22 @@ default agent in `~/.config/omarchy/defaults/agent`, written directly for the
 reason given under Categories and slots. Nothing under `~/.config/hypr` is
 ever touched.
 
+The loadout store is the one directory that takes files from outside. Saved
+loadouts are meant to be synced, and saying that is saying files arrive in it
+from other machines, so nothing in it is read on trust. The directory is
+checked once per run to be a real directory rather than a link standing in for
+one, to belong to this user, and to be closed to everyone else; one that fails
+is reported empty rather than read, and is not written to at all. A listing
+reads only regular files it opened itself, verifying after the open that the
+descriptor holds the file the name referred to, and stops at fixed limits on
+file count, bytes per file and bytes in total, because the process paying for
+that read is the shell itself. A save is published by renaming a freshly
+created file over its destination rather than writing through the
+destination's name, so it cannot be redirected by a link left at that name,
+never leaves half a loadout behind, and never destroys the old one before the
+new one exists. A destination that is anything other than absent or a plain
+file is refused rather than replaced.
+
 None of this asks for root: no sudo or pkexec is used anywhere in the plugin,
 and Omarchy's installer never runs plugin code. What is true of every
 Omarchy plugin is true of this one, though — it shares the long-running

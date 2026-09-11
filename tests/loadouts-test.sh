@@ -117,4 +117,166 @@ accented=$("$LOADOUTS" save 'Café' '{}')
 "$LOADOUTS" delete "$accented"
 [[ ! -f "$DIR/$accented.json" ]] || fail "a legitimate accented id could not be deleted"
 
+# ---- The store is a boundary ------------------------------------------------
+# Everything below treats the store the way the script does: as a directory
+# that other machines write into, because that is what "syncable" means.
+
+# The store is created closed to everyone else, and an older store made with
+# the default mode is tightened rather than refused.
+equals "store is private" "$(stat -c %a "$DIR")" "700"
+chmod 755 "$DIR"
+"$LOADOUTS" list >/dev/null
+equals "a loose store is tightened" "$(stat -c %a "$DIR")" "700"
+
+# A saved loadout is the user's own business and nobody else's.
+"$LOADOUTS" save "Mode Check" '{}' >/dev/null
+equals "saved file is private" "$(stat -c %a "$DIR/mode-check.json")" "600"
+"$LOADOUTS" delete mode-check
+
+# A store that is a link to somewhere else is not a store. Listing says so and
+# reports empty rather than reading through it, which is what keeps the screen
+# opening; saving and deleting refuse outright.
+elsewhere="$TMP/elsewhere"
+mkdir -p "$elsewhere"
+printf '{"id":"planted","name":"Planted","slots":{},"savedAt":"2026-01-01T00:00:00Z"}\n' \
+  > "$elsewhere/planted.json"
+linked="$TMP/linkstore"
+export XDG_DATA_HOME="$linked"
+mkdir -p "$linked/omarchy"
+ln -s "$elsewhere" "$linked/omarchy/loadouts"
+out=$("$LOADOUTS" list 2>/dev/null) || true
+equals "a linked store lists empty" "$out" "[]"
+"$LOADOUTS" list >/dev/null 2>&1 && fail "a linked store should exit non-zero"
+"$LOADOUTS" save "Nope" '{}' >/dev/null 2>&1 && fail "a linked store should refuse a save"
+[[ ! -e "$elsewhere/nope.json" ]] || fail "a save reached through the linked store"
+equals "the planted file was not read" \
+  "$(XDG_DATA_HOME="$linked" "$LOADOUTS" list 2>/dev/null)" "[]"
+export XDG_DATA_HOME="$TMP/data"
+
+# A relative XDG_DATA_HOME is not a path. The spec says to ignore it, so the
+# store falls back to the default rather than being built from it.
+( cd "$TMP" && XDG_DATA_HOME="relative/path" "$LOADOUTS" list >/dev/null 2>&1 ) || true
+[[ ! -d "$TMP/relative" ]] || fail "a relative XDG_DATA_HOME was used as a path"
+
+# ---- Saving cannot be redirected -------------------------------------------
+# The reason the write goes through a fresh file and a rename: a link sitting
+# at the destination must not become a way to write somewhere else.
+
+victim="$TMP/victim.conf"
+printf 'do not touch\n' > "$victim"
+ln -s "$victim" "$DIR/trap.json"
+"$LOADOUTS" save "Trap" '{}' trap >/dev/null 2>&1 && fail "overwriting a link should fail"
+"$LOADOUTS" save "Trap" '{}' >/dev/null 2>&1 && fail "saving onto a link should fail"
+equals "the link's target is untouched" "$(cat "$victim")" "do not touch"
+[[ -L "$DIR/trap.json" ]] || fail "the link itself should be left alone, not replaced"
+rm -f "$DIR/trap.json"
+
+# A directory wearing a loadout's name is refused the same way.
+mkdir -p "$DIR/dirnamed.json"
+"$LOADOUTS" save "Dirnamed" '{}' >/dev/null 2>&1 && fail "saving onto a directory should fail"
+[[ -d "$DIR/dirnamed.json" ]] || fail "the directory should be left alone"
+rmdir "$DIR/dirnamed.json"
+
+# A save that fails leaves the loadout it was replacing exactly as it was.
+# The old form redirected jq at the file, so the file was already empty by the
+# time jq rejected its arguments.
+"$LOADOUTS" save "Keeper" '{"theme":"nord"}' >/dev/null
+before=$(cat "$DIR/keeper.json")
+"$LOADOUTS" save "Keeper" 'not json at all' keeper >/dev/null 2>&1 && fail "bad slots should fail"
+equals "a failed save changed nothing" "$(cat "$DIR/keeper.json")" "$before"
+equals "and the loadout still lists" \
+  "$("$LOADOUTS" list | jq -r 'map(select(.id == "keeper")) | length')" "1"
+
+# Nothing half-written is ever listed: the temporary a save publishes through
+# is named so that a listing running beside it cannot pick it up.
+: > "$DIR/.loadout.halfway"
+equals "temporaries are not listed" \
+  "$("$LOADOUTS" list | jq -r 'map(select(.id == null)) | length')" "0"
+rm -f "$DIR/.loadout.halfway"
+
+# ---- Listing is bounded ------------------------------------------------------
+# The store is read by the long-lived shell process, so no file in it gets to
+# decide how much that read costs.
+
+# A link in the store is not followed, however valid the thing it points at.
+ln -s "$victim" "$DIR/link.json"
+printf '{"id":"sneak","name":"Sneak","slots":{},"savedAt":"2026-01-01T00:00:00Z"}\n' > "$victim"
+equals "a linked entry is not read" \
+  "$("$LOADOUTS" list | jq -r 'map(select(.id == "sneak")) | length')" "0"
+rm -f "$DIR/link.json"
+
+# A file past the per-file limit is skipped rather than read whole. The bulk
+# sits in a field the filter does not otherwise police, so that what this
+# proves is the read limit and not one of the field limits below it.
+{ printf '{"id":"huge","name":"Huge","slots":{},"savedAt":"2026-01-01T00:00:00Z","junk":"'
+  head -c 70000 /dev/zero | tr '\0' 'x'
+  printf '"}\n'; } > "$DIR/huge.json"
+[[ $(stat -c %s "$DIR/huge.json") -gt 65536 ]] || fail "the oversized fixture is not oversized"
+equals "an oversized file is skipped" \
+  "$("$LOADOUTS" list | jq -r 'map(select(.id == "huge")) | length')" "0"
+rm -f "$DIR/huge.json"
+
+# Neither is a loadout allowed to carry an unbounded number of slots, or a
+# field long enough to be a payload rather than a value.
+jq -n '{id:"manyslots", name:"Many", savedAt:"2026-01-01T00:00:00Z",
+        slots:([range(200)] | map({key:("s"+tostring), value:"v"}) | from_entries)}' \
+  > "$DIR/manyslots.json"
+equals "too many slots is skipped" \
+  "$("$LOADOUTS" list | jq -r 'map(select(.id == "manyslots")) | length')" "0"
+rm -f "$DIR/manyslots.json"
+jq -n --arg long "$(head -c 3000 /dev/zero | tr '\0' 'y')" \
+  '{id:"longfield", name:$long, slots:{}, savedAt:"2026-01-01T00:00:00Z"}' \
+  > "$DIR/longfield.json"
+equals "an overlong field is skipped" \
+  "$("$LOADOUTS" list | jq -r 'map(select(.id == "longfield")) | length')" "0"
+rm -f "$DIR/longfield.json"
+
+# Only the four fields the screen reads come back out. A planted file does not
+# get to hand anything else to the process that asked for the list.
+jq -n '{id:"extra", name:"Extra", slots:{}, savedAt:"2026-01-01T00:00:00Z",
+        surprise:"payload", "__proto__":"nope"}' > "$DIR/extra.json"
+equals "unknown fields are dropped" \
+  "$("$LOADOUTS" list | jq -c 'map(select(.id == "extra")) | .[0] | keys')" \
+  '["id","name","savedAt","slots"]'
+rm -f "$DIR/extra.json"
+
+# A store whose files are each acceptable but which together are not stops at
+# the aggregate limit rather than reading all of it into the shell.
+heavy="$TMP/heavy"; mkdir -p "$heavy/omarchy/loadouts"
+pad=$(head -c 50000 /dev/zero | tr '\0' 'z')
+for i in $(seq 1 120); do
+  printf '{"id":"h%s","name":"H%s","slots":{},"savedAt":"2026-01-01T00:00:00Z","junk":"%s"}\n' \
+    "$i" "$i" "$pad" > "$heavy/omarchy/loadouts/h$i.json"
+done
+heavy_count=$(XDG_DATA_HOME="$heavy" "$LOADOUTS" list | jq 'length')
+(( heavy_count > 0 )) || fail "the aggregate cap swallowed the whole listing"
+(( heavy_count < 120 )) || fail "the listing read $heavy_count heavy files, past the aggregate cap"
+
+# A store belonging to somebody else is refused rather than read or written.
+# Nothing here can chown a directory away, so the check is reached by telling
+# the script it is running as a different user, which is the same comparison.
+mkdir -p "$TMP/bin"
+printf '#!/bin/bash\n[[ $1 == -u ]] && { echo 999999; exit 0; }\nexec /usr/bin/id "$@"\n' \
+  > "$TMP/bin/id"
+chmod +x "$TMP/bin/id"
+out=$(PATH="$TMP/bin:$PATH" "$LOADOUTS" list 2>/dev/null) || true
+equals "a store owned by another user lists empty" "$out" "[]"
+PATH="$TMP/bin:$PATH" "$LOADOUTS" save "Foreign" '{}' >/dev/null 2>&1 &&
+  fail "a store owned by another user should refuse a save"
+[[ ! -e "$DIR/foreign.json" ]] || fail "a save reached a store owned by another user"
+
+# The number of files read at all is capped, so a store someone filled cannot
+# make the listing grow without limit.
+bulk="$TMP/bulk"; mkdir -p "$bulk"
+export XDG_DATA_HOME="$bulk"
+mkdir -p "$bulk/omarchy/loadouts"
+for i in $(seq 1 600); do
+  printf '{"id":"b%s","name":"B%s","slots":{},"savedAt":"2026-01-01T00:00:00Z"}\n' "$i" "$i" \
+    > "$bulk/omarchy/loadouts/b$i.json"
+done
+counted=$("$LOADOUTS" list | jq 'length')
+(( counted <= 512 )) || fail "listing read $counted files, past the cap"
+(( counted > 0 )) || fail "the cap swallowed the whole listing"
+export XDG_DATA_HOME="$TMP/data"
+
 printf 'loadouts-test: ok\n'
