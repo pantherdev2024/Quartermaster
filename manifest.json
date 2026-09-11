@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.pantherdev2024.quartermaster",
   "name": "Quartermaster",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "author": "pantherdev2024",
   "license": "MIT",
   "description": "An RPG equip screen for Omarchy. Slot in themes, backgrounds, fonts, bar layout and default apps, watch a miniature desktop re-fit itself as you browse, then deploy the whole fitting for real.",
