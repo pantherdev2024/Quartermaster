@@ -200,4 +200,28 @@ equals "nothing equipped when hyprctl fails" "$(jq '[.look[][] | select(.equippe
 equals "bar position falls back to top" \
   "$(jq -r '.barPositions[] | select(.equipped) | .id' "$TMP/empty.json")" "top"
 
+# A state file that is not JSON, or a link wearing its name, must not end the
+# scan: everything the screen shows comes through this one document, so one
+# unreadable byte in a corner of it would leave the screen with no inventory
+# at all rather than with one missing field.
+deploy_state="$XDG_STATE_HOME/omarchy/loadout"
+mkdir -p "$deploy_state"
+printf 'not json at all\n' > "$deploy_state/last-deploy.json"
+"$ROOT/scan.sh" > "$TMP/corrupt.json" || fail "scan.sh failed on a corrupt last-deploy"
+jq -e . "$TMP/corrupt.json" >/dev/null || fail "invalid JSON with a corrupt last-deploy"
+equals "a corrupt last-deploy reads as none" "$(jq -c '.lastDeploy' "$TMP/corrupt.json")" "null"
+ln -sf /etc/hostname "$deploy_state/last-deploy.json"
+"$ROOT/scan.sh" > "$TMP/linked.json" || fail "scan.sh failed on a linked last-deploy"
+equals "a linked last-deploy reads as none" "$(jq -c '.lastDeploy' "$TMP/linked.json")" "null"
+rm -f "$deploy_state/last-deploy.json"
+
+# The same for the shell's own configuration, which the bar widgets come from.
+# (The empty-machine case above took the whole config directory away.)
+mkdir -p "$HOME/.config/omarchy"
+printf 'not json at all\n' > "$HOME/.config/omarchy/shell.json"
+"$ROOT/scan.sh" > "$TMP/badshell.json" || fail "scan.sh failed on a corrupt shell.json"
+jq -e . "$TMP/badshell.json" >/dev/null || fail "invalid JSON with a corrupt shell.json"
+jq -e '.barWidgets | type == "array"' "$TMP/badshell.json" >/dev/null \
+  || fail "barWidgets was not an array with a corrupt shell.json"
+
 printf 'scan-test: ok\n'

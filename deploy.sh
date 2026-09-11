@@ -27,6 +27,10 @@ result="$state/last-deploy.json"
 io_dir "$state" private || exit 1
 io_plain "$log" || exit 1
 exec {logfd}>>"$log" || exit 1
+# The log is created by the append itself, so it arrives with whatever the
+# umask says; everything else this writes is shut, and the directory holding
+# it is too, so there is no reason for this one to be the exception.
+chmod 600 -- "$log" 2>/dev/null || true
 
 count=$(jq 'length' <<<"$plan") || exit 1
 echo "== $(date -Is) deploying $count command(s)" >&$logfd

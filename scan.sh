@@ -10,6 +10,23 @@
 
 set -uo pipefail
 
+here="$(dirname "$(readlink -f "$0")")"
+# shellcheck source=safe-io.sh
+source "$here/safe-io.sh" || { echo "cannot load safe-io.sh" >&2; exit 1; }
+
+# A JSON document read from a file this script did not write, or a stated
+# fallback when there is not one to be had. Every one of these is handed
+# onward as jq --argjson, where anything that is not JSON does not spoil one
+# slot, it ends the scan and leaves the screen with no inventory to open on.
+# So the read is bounded and will not follow a link, and what comes back is
+# parsed here rather than hoped about.
+read_json() {
+  local file="$1" fallback="$2" text
+  text="$(io_read "$file" 262144 2>/dev/null)" || { printf '%s' "$fallback"; return 0; }
+  jq -e . >/dev/null 2>&1 <<<"$text" || { printf '%s' "$fallback"; return 0; }
+  printf '%s' "$text"
+}
+
 emit_colors() {
   # colors.toml -> flat JSON object. Only `key = "#hex"` lines; ignores the rest.
   local file="$1"
@@ -215,7 +232,7 @@ unavailable_widgets() {
 emit_bar_widgets() {
   local catalog shell unavailable
   catalog="$(omarchy-plugin-catalog 2>/dev/null)" || catalog='[]'
-  shell="$(cat "$shell_json" 2>/dev/null)" || shell='{}'
+  shell="$(read_json "$shell_json" '{}')"
   unavailable="$(unavailable_widgets "$catalog")" || unavailable='[]'
   jq -n --argjson catalog "$catalog" --argjson shell "$shell" \
         --argjson unavailable "$unavailable" '
@@ -339,7 +356,7 @@ jq -n \
   --argjson textSizes "$(emit_text_sizes)" \
   --argjson barWidgets "$(emit_bar_widgets)" \
   --argjson barLayout "$(emit_bar_layout)" \
-  --argjson lastDeploy "$(cat "${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/loadout/last-deploy.json" 2>/dev/null || echo null)" \
+  --argjson lastDeploy "$(read_json "${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/loadout/last-deploy.json" null)" \
   --arg currentBackground "$(readlink -f ~/.local/state/omarchy/current/background 2>/dev/null)" \
   '{themes:$themes, loadouts:$loadouts, fonts:$fonts, terminals:$terminals, editors:$editors,
     browsers:$browsers, agents:$agents, barPositions:$barPositions,

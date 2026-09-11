@@ -79,7 +79,10 @@ loadouts are meant to be synced, and saying that is saying files arrive in it
 from other machines, so nothing in it is read on trust. The directory is
 checked once per run to be a real directory rather than a link standing in for
 one, to belong to this user, and to be closed to everyone else; one that fails
-is reported empty rather than read, and is not written to at all. A listing
+is reported empty rather than read, and is not written to at all. That check
+is of the directory itself: a link further up the path is not something a
+shell script can rule out, because it cannot hold a directory open and work
+relative to it the way a compiled program would. A listing
 reads only regular files it opened itself, verifying after the open that the
 descriptor holds the file the name referred to, and stops at fixed limits on
 file count, bytes per file and bytes in total, because the process paying for
@@ -91,7 +94,8 @@ new one exists. A destination that is anything other than absent or a plain
 file is refused rather than replaced.
 
 Every other file the plugin writes goes the same way, through `safe-io.sh`,
-which is the one place any of these scripts touches the filesystem. The
+which is where these scripts read and write anything they did not put there
+themselves. The
 directory is verified before it is used and is never used if anybody else can
 write into it; the file is replaced by renaming a freshly created one over it
 rather than by redirecting output at its name; and a link found where a file

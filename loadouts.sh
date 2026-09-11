@@ -98,7 +98,9 @@ list_store() {
   while IFS= read -r -d '' file; do
     (( count >= MAX_FILES )) && break
     count=$((count + 1))
-    doc="$(io_read "$file" "$MAX_FILE_BYTES" | jq -c . 2>/dev/null)" || continue
+    # head bounds a file to one document: jq -c prints a line per document,
+    # and a file holding several is a file this never wrote.
+    doc="$(io_read "$file" "$MAX_FILE_BYTES" | jq -c . 2>/dev/null | head -n 1)" || continue
     [[ -n $doc ]] || continue
     (( total + ${#doc} > MAX_TOTAL_BYTES )) && break
     total=$((total + ${#doc}))
@@ -113,11 +115,19 @@ list_store() {
   # Shape, then size, then only the four fields the screen reads. Anything a
   # planted file carries beyond those is dropped here rather than handed to
   # the long-lived process that asked for the list.
-  printf '%s\n' "${docs[@]}" |
+  #
+  # The first test is that the document is an object at all. Asking `.id` of a
+  # bare array or number is not a filter that says no, it is an error that
+  # ends the program, and one planted `[]` in the store would take every other
+  # loadout down with it and leave the screen with nothing to open on. The
+  # whole reason files are parsed one at a time is to survive exactly that.
+  local listed
+  listed="$(printf '%s\n' "${docs[@]}" |
     jq -s --argjson maxSlots "$MAX_SLOTS" --argjson maxString "$MAX_STRING" '
       def short($s): ($s | type) == "string" and ($s | length) <= $maxString;
       map(select(
-            short(.id) and (.id | length) > 0
+            type == "object"
+            and short(.id) and (.id | length) > 0
             and ((.id | contains("/")) | not) and .id != "." and .id != ".."
             and short(.name)
             and (.slots | type) == "object"
@@ -126,7 +136,14 @@ list_store() {
             and ((.savedAt // "") | type) == "string"
           )
           | {id, name, slots, savedAt: (.savedAt // "")})
-      | sort_by(.savedAt) | reverse'
+      | sort_by(.savedAt) | reverse' 2>/dev/null)" || listed=""
+
+  # Whatever happened above, what comes out of here parses. scan.sh feeds this
+  # straight to jq --argjson, so a listing that emits nothing does not fail
+  # this one slot, it fails the whole inventory and the screen opens on
+  # nothing at all.
+  [[ -n $listed ]] || listed='[]'
+  printf '%s\n' "$listed"
 }
 
 # ---- Commands --------------------------------------------------------------

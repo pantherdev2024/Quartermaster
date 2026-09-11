@@ -68,14 +68,26 @@ body="$(jq -r -n --argjson chosen "$next" --slurpfile table "$presets" '
   | if . == {} then "" else "hl.config(" + lua(0) + ")" end
 ')"
 
-# Remember what was there, so a rejected render can be undone exactly. A read
-# that will not follow a link doubles as the test for whether there is
-# anything to remember: a link wearing either name is not a previous state to
-# restore, it is something to be replaced.
+# Both destinations are checked before either is written. Writing the Lua and
+# only then discovering the record cannot be written leaves Hyprland wearing a
+# look that nothing recorded, which is worse than not applying at all.
+io_plain "$target" || exit 1
+io_plain "$record" || exit 1
+
+# Remember what was there, so a rejected render can be undone exactly. A file
+# that is there but cannot be read is not a previous state that can be put
+# back, so rather than write over it and find that out later, stop now: the
+# alternative is a rollback that deletes what it was meant to restore.
 had_target=0; prev_target=""
-if prev_target="$(io_read "$target")"; then had_target=1; fi
+if [[ -e $target ]]; then
+  prev_target="$(io_read "$target")" || { echo "cannot read $target to be able to undo this" >&2; exit 1; }
+  had_target=1
+fi
 had_record=0; prev_record=""
-if prev_record="$(io_read "$record")"; then had_record=1; fi
+if [[ -e $record ]]; then
+  prev_record="$(io_read "$record")" || { echo "cannot read $record to be able to undo this" >&2; exit 1; }
+  had_record=1
+fi
 
 have_hyprctl=0
 command -v hyprctl >/dev/null 2>&1 && have_hyprctl=1

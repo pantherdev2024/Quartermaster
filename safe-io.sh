@@ -29,6 +29,12 @@
 # refused, since a default umask produces exactly that and there is nothing to
 # gain by making the user fix it by hand. A directory shared with Omarchy
 # keeps whatever mode Omarchy gave it.
+#
+# What is checked is that directory itself. A link further up the path is not
+# something a shell script can rule out, since it cannot hold the directory
+# open and work relative to the descriptor the way a C program would; every
+# later step resolves the path again. It is worth being plain that this is a
+# check of the leaf rather than of the whole path.
 io_dir() {
   local path="$1" private="${2:-}" owner mode
 
@@ -121,11 +127,20 @@ io_publish() {
 # dropped, and so is a file swapped for another between those two steps. Every
 # byte after that comes from the descriptor rather than from the name, and
 # head stops at the limit, so what is on disk cannot decide what this costs.
+#
+# One gap is left open knowingly: if the name is swapped for a pipe in the
+# moment between the test and the open, the open waits for a writer that never
+# comes. Doing better needs O_NONBLOCK, which bash cannot ask for. It takes
+# write access to a directory this already refused unless it belongs to this
+# user and nobody else can write to it, which is to say it takes being the
+# user already, and no sync client creates pipes.
 io_read() {
   local file="$1" max="${2:-65536}" want got fd
   [[ -f $file && ! -L $file ]] || return 1
   want="$(stat -c '%d:%i' -- "$file" 2>/dev/null)" || return 1
-  exec {fd}<"$file" 2>/dev/null || return 1
+  # Braced: redirections are applied left to right, so `exec {fd}<file 2>/dev/null`
+  # would set up the failing open before stderr was anywhere else.
+  { exec {fd}<"$file"; } 2>/dev/null || return 1
   got="$(stat -L -c '%d:%i' -- "/dev/fd/$fd" 2>/dev/null)"
   if [[ -z $got || $got != "$want" ]]; then
     exec {fd}<&-

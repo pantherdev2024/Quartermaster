@@ -74,9 +74,29 @@ equals "count" "$("$LOADOUTS" list | jq 'length')" "6"
 
 # A file that is not a loadout is ignored rather than crashing the list. The
 # directory is user-visible and syncable, so something else will end up in it.
+# JSON that is not an object matters most: asking `.id` of an array or a
+# number is an error that ends jq rather than a test that says no, so one of
+# these in the store used to take every other loadout with it and leave the
+# screen with no inventory at all.
 printf 'not json at all\n' > "$DIR/junk.json"
 printf '{"unrelated":true}\n' > "$DIR/other.json"
 equals "junk ignored" "$("$LOADOUTS" list | jq 'length')" "6"
+for shape in '[]' '[1,2]' '1' 'true' 'null' '"a string"'; do
+  printf '%s\n' "$shape" > "$DIR/planted.json"
+  out=$("$LOADOUTS" list)
+  jq -e . >/dev/null 2>&1 <<<"$out" || fail "a planted $shape made the listing unparseable"
+  equals "a planted $shape leaves the rest listed" "$(jq 'length' <<<"$out")" "6"
+done
+rm -f "$DIR/planted.json"
+
+# One file is one loadout. A file holding several documents is not something
+# this ever wrote, and only its first is considered, so the count of files
+# read stays the count of loadouts considered.
+printf '{"id":"m1","name":"M1","slots":{},"savedAt":"2026-01-01T00:00:00Z"}\n{"id":"m2","name":"M2","slots":{},"savedAt":"2026-01-02T00:00:00Z"}\n' \
+  > "$DIR/multi.json"
+equals "only the first document of a file counts" \
+  "$("$LOADOUTS" list | jq -r 'map(select(.id == "m1" or .id == "m2")) | length')" "1"
+rm -f "$DIR/multi.json"
 
 # Deleting is by id and is quiet about an id that is already gone.
 "$LOADOUTS" delete desk-setup

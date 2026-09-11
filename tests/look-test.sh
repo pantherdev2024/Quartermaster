@@ -137,12 +137,28 @@ ln -s "$victim" "$TARGET"
 equals "the link's target is untouched" "$(cat "$victim")" "do not touch"
 rm -f "$TARGET"
 
+# Both destinations are checked before either is written. Applying the Lua and
+# only then finding the record unwritable would leave Hyprland wearing a look
+# that nothing recorded.
+"$LOOK" gaps airy >/dev/null || fail "setting a known state should work"
+before_target="$(cat "$TARGET")"
 printf 'do not touch\n' > "$victim"
 rm -f "$RECORD"
 ln -s "$victim" "$RECORD"
-"$LOOK" gaps airy 2>/dev/null && fail "a linked record should stop the apply"
+"$LOOK" gaps loose 2>/dev/null && fail "a linked record should stop the apply"
 equals "the record link's target is untouched" "$(cat "$victim")" "do not touch"
+equals "and the look file was not written either" "$(cat "$TARGET")" "$before_target"
 rm -f "$RECORD"
+
+# A file that is there but cannot be read is not a previous state that can be
+# put back, so the apply stops rather than writing over it and discovering
+# that only when the rollback needs it. The rollback used to delete it.
+rm -f "$RECORD"
+"$LOOK" gaps airy >/dev/null || fail "setting a known state should work"
+chmod 000 "$TARGET"
+"$LOOK" gaps loose 2>/dev/null && fail "an unreadable look file should stop the apply"
+[[ -e $TARGET ]] || fail "the unreadable look file was deleted instead of left alone"
+chmod 600 "$TARGET"
 
 # Back to a working store, and the toggles directory keeps the mode Omarchy
 # gave it rather than being taken over.

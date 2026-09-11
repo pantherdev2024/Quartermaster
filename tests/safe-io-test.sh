@@ -90,10 +90,14 @@ io_publish "$TMP/fresh/trap" "payload" 2>/dev/null && fail "io_publish wrote ove
 equals "the link's target is untouched" "$(cat "$victim")" "do not touch"
 [[ -L "$TMP/fresh/trap" ]] || fail "the link itself should be left in place"
 
-# Nothing is left behind when a write cannot be finished.
+# Nothing is left behind when a write cannot be finished, whether it is turned
+# away before a temporary exists or fails once there is one to clean up.
 before=$(find "$TMP/fresh" -maxdepth 1 -name '.*' | wc -l)
 io_publish "$TMP/fresh/adir" "payload" 2>/dev/null && fail "io_publish wrote over a directory"
 equals "no temporary is left behind" "$(find "$TMP/fresh" -maxdepth 1 -name '.*' | wc -l)" "$before"
+io_publish "$TMP/fresh/nosuchdir/file" "payload" 2>/dev/null &&
+  fail "io_publish wrote into a directory that is not there"
+equals "and none beside it either" "$(find "$TMP/fresh" -maxdepth 1 -name '.*' | wc -l)" "$before"
 
 # A temporary in flight is named so that nothing globbing for the real thing
 # can pick it up while it is being written.
