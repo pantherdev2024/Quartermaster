@@ -22,6 +22,9 @@
 set -euo pipefail
 
 here="$(dirname "$(readlink -f "$0")")"
+# shellcheck source=safe-io.sh
+source "$here/safe-io.sh" || { echo "cannot load safe-io.sh" >&2; exit 1; }
+
 presets="$here/look-presets.json"
 slot="${1:?usage: look-set.sh <slot> <preset>}"
 preset="${2:?usage: look-set.sh <slot> <preset>}"
@@ -35,9 +38,14 @@ jq -e --arg s "$slot" --arg p "$preset" \
   '.[$s] | type == "array" and any(.[]; .id == $p)' "$presets" >/dev/null 2>&1 \
   || { echo "unknown look preset: $slot/$preset" >&2; exit 1; }
 
-mkdir -p "$(dirname "$record")" "$target_dir"
+# The record is this plugin's own and is held private. The toggles directory
+# is Omarchy's, shared with its own flags, so it is checked for being a real
+# directory of this user's that nobody else can write to and its mode is left
+# exactly as Omarchy set it.
+io_dir "$(dirname "$record")" private || exit 1
+io_dir "$target_dir" || exit 1
 
-current="$(cat "$record" 2>/dev/null || true)"
+current="$(io_read "$record" 2>/dev/null || true)"
 jq -e 'type == "object"' <<<"$current" >/dev/null 2>&1 || current='{}'
 next="$(jq -c --arg s "$slot" --arg p "$preset" '. + {($s): $p}' <<<"$current")"
 
@@ -60,42 +68,38 @@ body="$(jq -r -n --argjson chosen "$next" --slurpfile table "$presets" '
   | if . == {} then "" else "hl.config(" + lua(0) + ")" end
 ')"
 
-# Remember what was there, so a rejected render can be undone exactly.
+# Remember what was there, so a rejected render can be undone exactly. A read
+# that will not follow a link doubles as the test for whether there is
+# anything to remember: a link wearing either name is not a previous state to
+# restore, it is something to be replaced.
 had_target=0; prev_target=""
-if [[ -f $target ]]; then had_target=1; prev_target="$(cat "$target")"; fi
+if prev_target="$(io_read "$target")"; then had_target=1; fi
 had_record=0; prev_record=""
-if [[ -f $record ]]; then had_record=1; prev_record="$(cat "$record")"; fi
+if prev_record="$(io_read "$record")"; then had_record=1; fi
 
 have_hyprctl=0
 command -v hyprctl >/dev/null 2>&1 && have_hyprctl=1
 errors_before=""
 (( have_hyprctl )) && errors_before="$(hyprctl configerrors 2>/dev/null || true)"
 
-write_file() {  # write_file <path> <content>: atomic, same directory
-  local tmp
-  tmp="$(mktemp "$(dirname "$1")/.$(basename "$1").XXXXXX")"
-  printf '%s\n' "$2" >"$tmp"
-  mv -f "$tmp" "$1"
-}
-
 if [[ -z $body ]]; then
   rm -f "$target"
 else
-  write_file "$target" "$(printf '%s\n%s\n%s\n\n%s' \
+  io_publish "$target" "$(printf '%s\n%s\n%s\n\n%s' \
     "-- Written by Quartermaster. The equip screen rewrites this file whenever a" \
     "-- look slot is deployed; fit every look slot back to stock, or delete this" \
     "-- file, and Hyprland is back to ~/.config/hypr/looknfeel.lua alone." \
-    "$body")"
+    "$body")" || exit 1
 fi
-write_file "$record" "$next"
+io_publish "$record" "$next" || exit 1
 
 (( have_hyprctl )) || exit 0
 
 hyprctl reload >/dev/null 2>&1 || true
 errors_after="$(hyprctl configerrors 2>/dev/null || true)"
 if [[ $errors_after != "$errors_before" ]]; then
-  if (( had_target )); then write_file "$target" "$prev_target"; else rm -f "$target"; fi
-  if (( had_record )); then write_file "$record" "$prev_record"; else rm -f "$record"; fi
+  if (( had_target )); then io_publish "$target" "$prev_target"; else rm -f "$target"; fi
+  if (( had_record )); then io_publish "$record" "$prev_record"; else rm -f "$record"; fi
   hyprctl reload >/dev/null 2>&1 || true
   echo "hyprland rejected the look file; previous look restored: $errors_after" >&2
   exit 1

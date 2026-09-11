@@ -122,4 +122,37 @@ equals "empty plan reports zero" "$(jq -r '.ok' "$STATE/last-deploy.json")" "0"
 "$DEPLOY" '[["omarchy-theme-set","Nord"]]'
 equals "log appends" "$(grep -c '^== ' "$STATE/deploy.log")" "4"
 
+# ---- The state directory is not written to blind ---------------------------
+# A deploy reports back through two files. Neither is written through a name
+# that something else can have pointed somewhere first.
+
+victim="$TMP/victim.conf"
+
+# The log is opened once, before any command runs, so a link left at its name
+# stops the deploy rather than redirecting everything it writes.
+printf 'do not touch\n' > "$victim"
+: > "$TRACE"; rm -rf "$STATE"; mkdir -p "$STATE"
+ln -s "$victim" "$STATE/deploy.log"
+"$DEPLOY" '[["omarchy-bar","position","top"]]' >/dev/null 2>&1 && fail "a linked log should stop the deploy"
+equals "the link's target is untouched" "$(cat "$victim")" "do not touch"
+equals "and nothing was run" "$(wc -l < "$TRACE")" "0"
+rm -f "$STATE/deploy.log"
+
+# The result file is replaced rather than written through in the same way.
+printf 'do not touch\n' > "$victim"
+: > "$TRACE"; rm -rf "$STATE"; mkdir -p "$STATE"
+ln -s "$victim" "$STATE/last-deploy.json"
+# The commands do run; it is the report at the end that refuses, so this is
+# expected to come back non-zero rather than to stop the script.
+"$DEPLOY" '[["omarchy-bar","position","top"]]' >/dev/null 2>&1 || true
+equals "the result link's target is untouched" "$(cat "$victim")" "do not touch"
+rm -rf "$STATE"
+
+# A state directory anyone could write into is not one to report into.
+mkdir -p "$STATE"; chmod 777 "$STATE"
+: > "$TRACE"
+"$DEPLOY" '[["omarchy-bar","position","top"]]' >/dev/null 2>&1 && fail "a world-writable state dir should stop the deploy"
+equals "nothing ran there either" "$(wc -l < "$TRACE")" "0"
+chmod 700 "$STATE"
+
 printf 'deploy-test: ok\n'

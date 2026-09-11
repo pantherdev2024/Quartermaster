@@ -10,14 +10,26 @@
 
 set -uo pipefail
 
+here="$(dirname "$(readlink -f "$0")")"
+# shellcheck source=safe-io.sh
+source "$here/safe-io.sh" || { echo "cannot load safe-io.sh" >&2; exit 1; }
+
 plan="${1:?plan json required}"
 state="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/loadout"
-mkdir -p "$state"
 log="$state/deploy.log"
 result="$state/last-deploy.json"
 
+# The log is opened once, here, and everything below appends through that one
+# descriptor rather than reopening the name each time. Checking a name and
+# then writing to it is two different things happening to two different
+# moments; opening it once means every later append lands in the file this
+# check passed, whatever happens to the name afterwards.
+io_dir "$state" private || exit 1
+io_plain "$log" || exit 1
+exec {logfd}>>"$log" || exit 1
+
 count=$(jq 'length' <<<"$plan") || exit 1
-echo "== $(date -Is) deploying $count command(s)" >>"$log"
+echo "== $(date -Is) deploying $count command(s)" >&$logfd
 
 now_ms() { date +%s%3N; }
 
@@ -30,7 +42,7 @@ now_ms() { date +%s%3N; }
 skip_theme_background=0
 if jq -e 'any(.[]; (.[0] | split("/") | last) == "omarchy-theme-bg-set")' <<<"$plan" >/dev/null 2>&1; then
   skip_theme_background=1
-  echo "   (theme keeps its hands off the background: one is fitted)" >>"$log"
+  echo "   (theme keeps its hands off the background: one is fitted)" >&$logfd
 fi
 
 ok=0
@@ -42,21 +54,22 @@ for ((i = 0; i < count; i++)); do
   if ((skip_theme_background)) && [[ ${cmd[0]##*/} == omarchy-theme-set ]]; then
     prefix=(env OMARCHY_THEME_SKIP_BACKGROUND=1)
   fi
-  echo "-- ${cmd[*]}" >>"$log"
+  echo "-- ${cmd[*]}" >&$logfd
   at=$(now_ms)
-  if "${prefix[@]}" "${cmd[@]}" >>"$log" 2>&1; then
+  if "${prefix[@]}" "${cmd[@]}" >&$logfd 2>&1; then
     ok=$((ok + 1))
     outcome=ok
   else
     failed+=("${cmd[0]##*/}")
     outcome=FAILED
   fi
-  echo "   $outcome in $(($(now_ms) - at))ms" >>"$log"
+  echo "   $outcome in $(($(now_ms) - at))ms" >&$logfd
 done
-echo "== $count command(s) in $(($(now_ms) - started))ms total" >>"$log"
+echo "== $count command(s) in $(($(now_ms) - started))ms total" >&$logfd
 
-jq -n --arg at "$(date -Is)" --argjson ok "$ok" --argjson failed "${#failed[@]}" \
-  --arg names "${failed[*]:-}" '{at:$at, ok:$ok, failed:$failed, names:$names}' >"$result"
+summary="$(jq -n --arg at "$(date -Is)" --argjson ok "$ok" --argjson failed "${#failed[@]}" \
+  --arg names "${failed[*]:-}" '{at:$at, ok:$ok, failed:$failed, names:$names}')" || exit 1
+io_publish "$result" "$summary" || exit 1
 
 if (( ${#failed[@]} == 0 )); then
   plural="s"; (( ok == 1 )) && plural=""

@@ -125,4 +125,28 @@ rm "$TMP/bin/hyprctl"
 "$LOOK" corners pill || fail "should work without hyprctl"
 grep -q 'rounding = 20,' "$TARGET" || fail "render without hyprctl"
 
+# ---- Neither file is written through its name ------------------------------
+# The rendered look is Lua that Hyprland executes, so where it lands matters
+# more than most writes here.
+
+victim="$TMP/victim.conf"
+printf 'do not touch\n' > "$victim"
+rm -f "$TARGET"
+ln -s "$victim" "$TARGET"
+"$LOOK" gaps airy 2>/dev/null && fail "a linked look file should stop the apply"
+equals "the link's target is untouched" "$(cat "$victim")" "do not touch"
+rm -f "$TARGET"
+
+printf 'do not touch\n' > "$victim"
+rm -f "$RECORD"
+ln -s "$victim" "$RECORD"
+"$LOOK" gaps airy 2>/dev/null && fail "a linked record should stop the apply"
+equals "the record link's target is untouched" "$(cat "$victim")" "do not touch"
+rm -f "$RECORD"
+
+# Back to a working store, and the toggles directory keeps the mode Omarchy
+# gave it rather than being taken over.
+"$LOOK" gaps airy >/dev/null || fail "a normal apply should still work"
+equals "the toggles dir keeps its mode" "$(stat -c %a "$(dirname "$TARGET")")" "755"
+
 printf 'look-test: ok\n'

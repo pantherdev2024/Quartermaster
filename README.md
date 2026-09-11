@@ -90,6 +90,16 @@ never leaves half a loadout behind, and never destroys the old one before the
 new one exists. A destination that is anything other than absent or a plain
 file is refused rather than replaced.
 
+Every other file the plugin writes goes the same way, through `safe-io.sh`,
+which is the one place any of these scripts touches the filesystem. The
+directory is verified before it is used and is never used if anybody else can
+write into it; the file is replaced by renaming a freshly created one over it
+rather than by redirecting output at its name; and a link found where a file
+was expected stops the write rather than being followed, because in a
+directory this plugin manages that is evidence rather than an accident. The
+deploy log is opened once, before the first command runs, and every line after
+that goes to the descriptor rather than reopening the name.
+
 None of this asks for root: no sudo or pkexec is used anywhere in the plugin,
 and Omarchy's installer never runs plugin code. What is true of every
 Omarchy plugin is true of this one, though — it shares the long-running
@@ -430,6 +440,7 @@ ItemData.qml       description panel for whatever the cursor is on
 TechFrame.qml      chamfered frame with heavy edge and corner brackets
 scan.sh            inventory as JSON (widgets and bar layout included)
 loadouts.sh        list / save (new, or over an existing id) / delete saved loadouts
+safe-io.sh         the only place the scripts read and write files: verified directories, bounded reads, atomic replaces
 deploy.sh          runs a fitting's commands detached from the shell and reports back
 agent-set.sh       records the default agent without launching it
 look-set.sh        renders the chosen look presets into Omarchy's toggles drop-in and reloads Hyprland
@@ -438,7 +449,7 @@ preview.png        the marketplace card: the screen on a 1920x1080 monitor
 screenshots/       the boot screen, the three categories and the workbench, for this README
 LICENSE            MIT
 tests/run.sh       every test below, in order
-tests/*-test.sh    manifest, qmllint, the bar layout model, and the five scripts
+tests/*-test.sh    manifest, qmllint, the bar layout model, safe-io, and the five scripts
 ```
 
 `tests/run.sh` needs nothing installed and changes nothing: every test that

@@ -7,6 +7,7 @@ set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
 "$ROOT/manifest-test.sh"
+"$ROOT/safe-io-test.sh"
 "$ROOT/qml-test.sh"
 "$ROOT/barlayout-test.sh"
 "$ROOT/loadouts-test.sh"
