@@ -121,6 +121,9 @@ Item {
     asynchronous: true
     cache: true
     visible: status === Image.Ready
+    // A theme's wallpaper is whatever the repository shipped; decode it no
+    // larger than this surface could ever show.
+    sourceSize.width: 1280
   }
 
   // Fade the wallpaper slightly so mock windows stay legible on busy images.
@@ -255,6 +258,7 @@ Item {
           font.bold: true
         }
         Text {
+          textFormat: Text.PlainText
           id: termName
           anchors.right: parent.right
           text: root.terminalName
@@ -264,6 +268,7 @@ Item {
         }
       }
       Text {
+        textFormat: Text.PlainText
         id: cmdLine
         text: "$ omarchy theme set " + (root.themeName || "…").toLowerCase()
         color: root.fg
@@ -298,6 +303,7 @@ Item {
         id: promptRow
         spacing: root.t * 0.8
         Text {
+          textFormat: Text.PlainText
           text: "$ " + (root.agentName || "")
           color: root.fg
           font.family: root.fontFamily
@@ -347,6 +353,7 @@ Item {
           }
         }
         Text {
+          textFormat: Text.PlainText
           anchors.right: parent.right
           text: root.editorName
           color: root.dimFg
@@ -378,6 +385,7 @@ Item {
           Repeater {
             model: codeLine.modelData
             delegate: Text {
+              textFormat: Text.PlainText
               required property var modelData
               text: modelData[1]
               color: modelData[0]
@@ -422,6 +430,7 @@ Item {
           color: Qt.rgba(root.bg.r, root.bg.g, root.bg.b, 0.55)
           anchors.verticalCenter: parent.verticalCenter
           Text {
+            textFormat: Text.PlainText
             anchors { left: parent.left; leftMargin: root.t * 1.6; verticalCenter: parent.verticalCenter }
             text: "omarchy.org" + (root.browserName ? "   ·   " + root.browserName : "")
             color: root.dimFg

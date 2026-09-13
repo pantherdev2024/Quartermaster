@@ -14,6 +14,30 @@ here="$(dirname "$(readlink -f "$0")")"
 # shellcheck source=safe-io.sh
 source "$here/safe-io.sh" || { echo "cannot load safe-io.sh" >&2; exit 1; }
 
+# The plan is built by Loadout.qml out of program names that are literals
+# there, and this script is the only thing that runs it. That is a promise
+# about the caller; this is where it is checked instead of trusted. A command
+# runs only if its program is one of Omarchy's own setters, named bare and
+# found on PATH, or one of this plugin's two scripts, named by the exact path
+# they have beside this one. A plan that names anything else, or that is not
+# a list of argv lists, or that is longer than a fitting can be, is refused
+# whole before any of it runs.
+ALLOWED_PROGRAMS=(
+  omarchy-theme-set omarchy-theme-bg-set omarchy-font-set omarchy-display-text-size
+  omarchy-bar omarchy-default-terminal omarchy-default-editor omarchy-default-browser
+  omarchy-plugin-enable omarchy-plugin-disable
+)
+ALLOWED_SCRIPTS=("$here/look-set.sh" "$here/agent-set.sh")
+MAX_COMMANDS=128   # a full fitting is under twenty; rebuilding the bar adds one per widget
+
+allowed_program() {
+  local program="$1" p
+  for p in "${ALLOWED_SCRIPTS[@]}"; do [[ $program == "$p" ]] && return 0; done
+  [[ $program == */* ]] && return 1
+  for p in "${ALLOWED_PROGRAMS[@]}"; do [[ $program == "$p" ]] && return 0; done
+  return 1
+}
+
 plan="${1:?plan json required}"
 state="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/loadout"
 log="$state/deploy.log"
@@ -32,8 +56,26 @@ exec {logfd}>>"$log" || exit 1
 # it is too, so there is no reason for this one to be the exception.
 chmod 600 -- "$log" 2>/dev/null || true
 
+jq -e 'type == "array" and all(.[]; type == "array" and length > 0 and all(.[]; type == "string"))' \
+  <<<"$plan" >/dev/null 2>&1 || { echo "== $(date -Is) refused: plan is not a list of argv lists" >&$logfd; exit 1; }
 count=$(jq 'length' <<<"$plan") || exit 1
 echo "== $(date -Is) deploying $count command(s)" >&$logfd
+
+refused=()
+(( count <= MAX_COMMANDS )) || refused+=("$count commands, more than the $MAX_COMMANDS a fitting can need")
+for ((i = 0; i < count && i < MAX_COMMANDS; i++)); do
+  program="$(jq -r ".[$i][0]" <<<"$plan")"
+  allowed_program "$program" || refused+=("$program")
+done
+if (( ${#refused[@]} > 0 )); then
+  for r in "${refused[@]}"; do echo "   refused: $r" >&$logfd; done
+  echo "== nothing run" >&$logfd
+  summary="$(jq -n --arg at "$(date -Is)" --argjson failed "${#refused[@]}" \
+    --arg names "${refused[*]}" '{at:$at, ok:0, failed:$failed, names:$names}')" || exit 1
+  io_publish "$result" "$summary" || exit 1
+  omarchy-notification-send -g 󰆓 "Quartermaster: deploy refused · ${refused[*]}"
+  exit 1
+fi
 
 now_ms() { date +%s%3N; }
 

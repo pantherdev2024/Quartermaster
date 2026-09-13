@@ -320,6 +320,7 @@ Item {
       // edge it is really on, and each bin names where it lands on a vertical
       // bar as well.
       Text {
+        textFormat: Text.PlainText
         id: railTag
         anchors { right: parent.right; top: parent.top }
         text: (root.host ? String(root.host.previewBarPosition || "top") : "top").toUpperCase()
@@ -361,6 +362,9 @@ Item {
             asynchronous: true
             cache: true
             visible: status === Image.Ready
+            // A theme's wallpaper is whatever the repository shipped; decode it no
+            // larger than this surface could ever show.
+            sourceSize.width: 1280
           }
 
           Rectangle {
@@ -486,6 +490,7 @@ Item {
       height: root.headHeight
 
       Text {
+        textFormat: Text.PlainText
         id: zoneLabel
         anchors { left: parent.left; verticalCenter: parent.verticalCenter }
         text: zone.alt === "" ? zone.label : zone.label + " / " + zone.alt
@@ -508,6 +513,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         id: zoneCount
         anchors { right: parent.right; verticalCenter: parent.verticalCenter }
         text: String(zone.ids.length).padStart(2, "0") + (zone.isBench ? "  OFF" : "")
@@ -533,6 +539,7 @@ Item {
       edgeWidth: Style.space(2)
 
       Text {
+        textFormat: Text.PlainText
         anchors.centerIn: parent
         visible: zone.ids.length === 0
         text: zone.isBench
@@ -632,6 +639,7 @@ Item {
           anchors.centerIn: parent
           spacing: Style.space(3)
           Text {
+            textFormat: Text.PlainText
             anchors.horizontalCenter: parent.horizontalCenter
             text: root.host ? (root.host.widgetGlyphs[wrap.widgetId] || "▪") : "▪"
             color: wrap.isCursor ? root.accent : root.fg
@@ -639,6 +647,7 @@ Item {
             font.pixelSize: Style.font.iconLarge
           }
           Text {
+            textFormat: Text.PlainText
             anchors.horizontalCenter: parent.horizontalCenter
             text: wrap.w.short || ""
             color: wrap.isCursor ? root.accent : root.muted

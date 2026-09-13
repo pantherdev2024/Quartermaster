@@ -133,6 +133,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
           }
           Text {
+            textFormat: Text.PlainText
             text: root.host && root.host.dirty ? "UNDEPLOYED" : "READY"
             color: root.host && root.host.dirty ? root.warn : root.muted
             font.family: root.uiFont
@@ -170,6 +171,7 @@ Item {
         // The kicker names the loadout the fitting represents, when it
         // does, so the status line below has room to say what state it is in.
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           elide: Text.ElideRight
           text: {
@@ -202,6 +204,7 @@ Item {
         }
         // What the character is wearing, in the nameplate's words.
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           elide: Text.ElideRight
           text: {
@@ -274,6 +277,7 @@ Item {
 
     // -- The saved loadouts ----------------------------------------------
     Text {
+      textFormat: Text.PlainText
       id: rightKicker
       anchors { top: parent.top; left: grid.left }
       text: "SAVED LOADOUTS  " + String(grid.savedCount).padStart(2, "0")

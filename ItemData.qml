@@ -71,6 +71,7 @@ TechFrame {
       height: kicker.implicitHeight
 
       Text {
+        textFormat: Text.PlainText
         id: kicker
         anchors.left: parent.left
         anchors.right: stateWord.left
@@ -85,6 +86,7 @@ TechFrame {
       }
 
       Text {
+        textFormat: Text.PlainText
         id: stateWord
         anchors.right: parent.right
         text: root.previewed ? (root.host ? root.host.previewTag(root.slot.id) : "PREVIEW")
@@ -100,6 +102,7 @@ TechFrame {
     }
 
     Text {
+      textFormat: Text.PlainText
       width: parent.width
       text: root.kind === "workbench" ? (root.slot.label || "").replace(/\b\w+/g, function(w) {
           return w.charAt(0) + w.substring(1).toLowerCase()
@@ -131,6 +134,7 @@ TechFrame {
     // The slot seen from its button: how the fitting is spread across the
     // bar, and the summary that the row's tag bars used to carry.
     Text {
+      textFormat: Text.PlainText
       visible: root.kind === "workbench"
       width: parent.width
       text: root.host ? root.host.barModsBreakdown : ""
@@ -143,6 +147,7 @@ TechFrame {
     // A bar widget: where it sits, what it does, and a warning when its
     // layout entry carries settings that turning it off would discard.
     Text {
+      textFormat: Text.PlainText
       visible: root.kind === "mod" && root.item
       width: parent.width
       text: {
@@ -176,6 +181,7 @@ TechFrame {
 
     // A preset's values, or whatever else an item says about itself.
     Text {
+      textFormat: Text.PlainText
       visible: root.kind === "plain" && root.item && root.item.meta ? true : false
       width: parent.width
       text: root.item && root.item.meta ? root.item.meta : ""
@@ -196,6 +202,7 @@ TechFrame {
     }
 
     Text {
+      textFormat: Text.PlainText
       width: parent.width
       text: root.source
       color: root.muted

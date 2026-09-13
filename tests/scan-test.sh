@@ -215,6 +215,58 @@ ln -sf /etc/hostname "$deploy_state/last-deploy.json"
 equals "a linked last-deploy reads as none" "$(jq -c '.lastDeploy' "$TMP/linked.json")" "null"
 rm -f "$deploy_state/last-deploy.json"
 
+# A theme's palette came with the theme, from wherever the theme came from.
+# Only hex colours under known-shaped keys come through it, only so many of
+# them, and a palette that is a link to somewhere else is no palette at all:
+# the theme is left out rather than shown with whatever the link points at.
+themes="$HOME/.config/omarchy/themes"
+mkdir -p "$themes/hostile" "$themes/linked"
+{
+  printf 'background = "#0d1117"\n'
+  printf 'foreground = "<img src=x>"\n'
+  printf 'accent = "#0d1117; url(file:///etc/passwd)"\n'
+  printf 'Blue-1 = "#123456"\n'
+  printf '../../escape = "#123456"\n'
+  printf 'mode = "dark"\n'
+  for i in $(seq 1 200); do printf 'key_%03d = "#00000%d"\n' "$i" $((i % 10)); done
+} > "$themes/hostile/colors.toml"
+ln -sf /etc/hostname "$themes/linked/colors.toml"
+"$ROOT/scan.sh" > "$TMP/palette.json" || fail "scan.sh failed on a hostile palette"
+jq -e . "$TMP/palette.json" >/dev/null || fail "invalid JSON with a hostile palette"
+hostile=$(jq -c '.themes[] | select(.name == "Hostile") | .colors' "$TMP/palette.json")
+equals "only hex colours under plain keys survive a palette" \
+  "$(jq -c 'to_entries | map(select(.key | test("^(background|key_)") | not))' <<<"$hostile")" "[]"
+equals "the background came through as it was" "$(jq -r '.background' <<<"$hostile")" "#0d1117"
+equals "a palette is capped at its key limit" "$(jq 'length' <<<"$hostile")" "64"
+[[ $(jq -r '.themes | map(.name) | join(",")' "$TMP/palette.json") != *Linked* ]] \
+  || fail "a theme whose palette is a link was offered"
+rm -rf "$themes/hostile" "$themes/linked"
+
+# Every list is capped, so a machine (or a synced folder, or a plugin
+# catalogue) with far more than any real one has still yields a document of
+# bounded size, with the caps landing where scan.sh says they do.
+themes="$HOME/.config/omarchy/themes"
+for i in $(seq 1 100); do theme "$themes/many-$(printf '%03d' "$i")"; done
+mkdir -p "$themes/many-001/backgrounds"
+for i in $(seq 1 50); do : > "$themes/many-001/backgrounds/wall-$(printf '%03d' "$i").png"; done
+long=$(printf 'x%.0s' $(seq 1 300))
+stub omarchy-font-list "seq 1 100 | sed 's/^/Font /'; printf '%s\\n' '$long'"
+stub omarchy-plugin-catalog 'jq -n "[range(100) | {id: (\"acme.w\" + tostring), name: (\"W\" + tostring), kinds: [\"bar-widget\"], barWidget: {description: (\"d\" * 400)}}]"'
+"$ROOT/scan.sh" > "$TMP/many.json" || fail "scan.sh failed on an oversized machine"
+jq -e . "$TMP/many.json" >/dev/null || fail "invalid JSON on an oversized machine"
+equals "themes are capped" "$(jq '.themes | length' "$TMP/many.json")" "64"
+equals "backgrounds are capped per theme" \
+  "$(jq '.themes[] | select(.id == "many-001") | .backgrounds | length' "$TMP/many.json")" "32"
+equals "fonts are capped" "$(jq '.fonts | length' "$TMP/many.json")" "64"
+[[ $(jq -r '.fonts | map(.id) | join(",")' "$TMP/many.json") != *"$long"* ]] \
+  || fail "an overlong font name was offered"
+equals "widgets are capped" "$(jq '.barWidgets | length' "$TMP/many.json")" "64"
+equals "widget strings are clipped" \
+  "$(jq '.barWidgets | map(.description | length) | max' "$TMP/many.json")" "128"
+(( $(wc -c < "$TMP/many.json") < 1048576 )) || fail "an oversized machine's inventory passed the byte cap"
+rm -rf "$themes"/many-*
+stub omarchy-font-list          'printf "CaskaydiaMono Nerd Font\nJetBrainsMono Nerd Font\n"'
+
 # The same for the shell's own configuration, which the bar widgets come from.
 # (The empty-machine case above took the whole config directory away.)
 mkdir -p "$HOME/.config/omarchy"
@@ -223,5 +275,31 @@ printf 'not json at all\n' > "$HOME/.config/omarchy/shell.json"
 jq -e . "$TMP/badshell.json" >/dev/null || fail "invalid JSON with a corrupt shell.json"
 jq -e '.barWidgets | type == "array"' "$TMP/badshell.json" >/dev/null \
   || fail "barWidgets was not an array with a corrupt shell.json"
+equals "bar position falls back with a corrupt shell.json" \
+  "$(jq -r '.barPositions[] | select(.equipped) | .id' "$TMP/badshell.json")" "top"
+
+# And a shell.json that is a link is not read at all, wherever it points: the
+# bar's position, surface and layout all fall back rather than follow it.
+ln -sf /etc/hostname "$HOME/.config/omarchy/shell.json"
+"$ROOT/scan.sh" > "$TMP/linkshell.json" || fail "scan.sh failed on a linked shell.json"
+jq -e . "$TMP/linkshell.json" >/dev/null || fail "invalid JSON with a linked shell.json"
+equals "bar position falls back with a linked shell.json" \
+  "$(jq -r '.barPositions[] | select(.equipped) | .id' "$TMP/linkshell.json")" "top"
+equals "bar surface falls back with a linked shell.json" \
+  "$(jq -r '.barTransparency[] | select(.equipped) | .id' "$TMP/linkshell.json")" "false"
+equals "bar layout is empty with a linked shell.json" \
+  "$(jq -c '.barLayout' "$TMP/linkshell.json")" '{"left":[],"center":[],"right":[]}'
+rm -f "$HOME/.config/omarchy/shell.json"
+
+# The current theme's name is read the same way when the command is not there
+# to ask: a link at the state file's name is no theme, so nothing is equipped.
+rm -f "$TMP/bin/omarchy-theme-current"
+mkdir -p "$XDG_STATE_HOME/omarchy/current"
+ln -sf /etc/hostname "$XDG_STATE_HOME/omarchy/current/theme.name"
+theme "$HOME/.config/omarchy/themes/mytheme"
+"$ROOT/scan.sh" > "$TMP/linktheme.json" || fail "scan.sh failed on a linked theme.name"
+equals "a linked theme.name equips nothing" \
+  "$(jq '[.themes[] | select(.equipped)] | length' "$TMP/linktheme.json")" "0"
+rm -f "$XDG_STATE_HOME/omarchy/current/theme.name"
 
 printf 'scan-test: ok\n'

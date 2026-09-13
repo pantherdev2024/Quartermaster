@@ -427,6 +427,36 @@ background with a little foreground mixed in (at the theme's own control fill
 alphas), so contrast holds under light themes (Lupine, Catppuccin Latte) as
 well as dark ones.
 
+Every string the screen shows that it did not write itself (theme, font and
+background names, item descriptions, saved loadout names and their summaries,
+the paths and statuses that come back from the scripts) is rendered with
+`textFormat: Text.PlainText`. A Text's default is to interpret anything that
+looks like markup, and those strings come from theme repositories, the
+catalogue, the filesystem and synced loadouts, none of which are the plugin's
+to trust. `tests/qml-test.sh` fails on any Text whose text is not a fixed
+literal and lacks the guard.
+
+A saved loadout is a file somebody else may have written, since the store is
+synced between machines, so nothing in one is taken at its word. Every slot
+value is looked up in the catalogue as the file is listed, and only the
+catalogue's own id comes through; a bar layout keeps only the widgets the
+catalogue or the live bar knows; a background is matched by file name to the
+loadout's theme and handed on as the path the scan found. Anything else is
+dropped before it can be previewed, fitted or deployed. The wallpapers a theme
+ships are decoded no larger than the preview can show, and the same test fails
+on any Image that reads a file without a `sourceSize` bound.
+A theme's colour file is read the same bounded way as every other file the
+plugin did not write, and only hex colours under plain keys come out of it.
+Every list in the inventory is capped (themes, backgrounds per theme, fonts,
+bar widgets, and the length of any name), and the finished document is
+measured against a byte limit before the screen is handed it.
+
+The deploy script, the one part of the plugin that changes anything, does not
+take the screen's word for what to run. It admits Omarchy's own setters by
+bare name and the plugin's two scripts by their exact path, and refuses the
+whole plan before running any of it if a command names anything else, if the
+plan is not a list of argument lists, or if it is longer than a fitting can be.
+
 ## Files
 
 ```
@@ -445,7 +475,7 @@ TechFrame.qml      chamfered frame with heavy edge and corner brackets
 scan.sh            inventory as JSON (widgets and bar layout included)
 loadouts.sh        list / save (new, or over an existing id) / delete saved loadouts
 safe-io.sh         the only place the scripts read and write files: verified directories, bounded reads, atomic replaces
-deploy.sh          runs a fitting's commands detached from the shell and reports back
+deploy.sh          runs a fitting's commands detached from the shell and reports back; refuses any program it does not know
 agent-set.sh       records the default agent without launching it
 look-set.sh        renders the chosen look presets into Omarchy's toggles drop-in and reloads Hyprland
 look-presets.json  every value the look slots can set

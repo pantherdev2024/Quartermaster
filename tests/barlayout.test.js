@@ -194,3 +194,32 @@ test("a hostile widget id travels as one argument and is never spliced into anot
   const cmds = BarLayout.barModsCommands("left:|center:|right:", "left:" + id + "|center:|right:")
   assert.deepEqual(cmds, [["omarchy-plugin-enable", id, "--section", "left", "--index", "0"]])
 })
+
+// ---- the loadout boundary --------------------------------------------------
+// A saved loadout's layout is a string from a file somebody else may have
+// written. restrictLayout is where it becomes a layout, and only ids the
+// catalogue (or the live bar) knows come through.
+
+test("a synced layout keeps only ids the catalogue knows, in their order", () => {
+  const known = ["clock", "battery", "omarchy.spacer"]
+  const l = BarLayout.decodeLayout("left:clock,evil|center:omarchy.spacer,../bin/sh|right:battery")
+  assert.deepEqual(BarLayout.restrictLayout(l, known), layout(["clock"], ["omarchy.spacer"], ["battery"]))
+})
+
+test("a repeated id survives once, where it first appeared", () => {
+  const l = BarLayout.decodeLayout("left:clock,clock|center:clock|right:")
+  assert.deepEqual(BarLayout.restrictLayout(l, ["clock"]), layout(["clock"], [], []))
+})
+
+test("an empty catalogue yields an empty layout, never a command", () => {
+  const l = BarLayout.decodeLayout("left:; rm -rf ~|center:x|right:y")
+  const kept = BarLayout.restrictLayout(l, [])
+  assert.deepEqual(kept, layout())
+  assert.deepEqual(BarLayout.barModsCommands("left:|center:|right:", BarLayout.encodeLayout(kept)), [])
+})
+
+test("restricting never mutates the layout it was handed", () => {
+  const l = layout(["clock", "evil"], [], [])
+  BarLayout.restrictLayout(l, ["clock"])
+  assert.deepEqual(l, layout(["clock", "evil"], [], []))
+})

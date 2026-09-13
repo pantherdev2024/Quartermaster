@@ -98,6 +98,7 @@ Item {
         // the tag bars the cells used to carry, said in one line. The
         // compact row has no room for it; the character's tag says the same.
         Text {
+          textFormat: Text.PlainText
           visible: root.host ? !root.host.compact : true
           text: root.host ? root.host.barModsSummary : ""
           color: root.staged ? root.warn : root.muted
@@ -237,6 +238,7 @@ Item {
           readonly property string tag: cell.modelData.short || ""
 
           Text {
+            textFormat: Text.PlainText
             anchors.centerIn: parent
             visible: cell.thumbnail.length === 0
             text: cell.isFont ? "Aa"
@@ -303,6 +305,7 @@ Item {
     width: root.labelWidth
 
     Text {
+      textFormat: Text.PlainText
       id: inlineGlyph
       anchors.left: parent.left
       anchors.verticalCenter: parent.verticalCenter
@@ -317,6 +320,7 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       spacing: Style.space(3)
       Text {
+        textFormat: Text.PlainText
         width: parent.width
         text: root.slotDef.label || ""
         color: root.focused ? root.accent : root.fg
@@ -327,6 +331,7 @@ Item {
         elide: Text.ElideRight
       }
       Text {
+        textFormat: Text.PlainText
         width: parent.width
         text: root.stockCount === 0 ? "NONE"
           : root.staged ? "FITTED"

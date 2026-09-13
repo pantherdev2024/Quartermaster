@@ -27,17 +27,41 @@ read_json() {
   printf '%s' "$text"
 }
 
+# Every list in the inventory is capped, so the one document the screen holds
+# is bounded whatever the machine holds: a themes folder with thousands of
+# entries, a font list that runs on for pages, a plugin catalogue stuffed with
+# widgets. Each cap is a few times what a real machine holds (Omarchy ships
+# about two dozen themes with a handful of wallpapers each; this one has five
+# fonts and nineteen widgets) and the finished document is measured once
+# against the last of them before it is handed over. Adjust here if a real
+# collection ever grows into one.
+MAX_THEMES=64
+MAX_BACKGROUNDS=32       # per theme
+MAX_FONTS=64
+MAX_WIDGETS=64
+MAX_NAME=128             # characters in any id, name or description from outside
+MAX_INVENTORY_BYTES=1048576   # a real inventory is under 40 KiB; the loadout store alone is capped at half this
+
+# A theme's palette is repository data: it arrived with the theme, from
+# wherever the theme came from. So it is read the way every other file this
+# script did not write is read (bounded, never through a link), and only what
+# the screen can paint with comes out: `key = "#rrggbb"` lines, a hex colour
+# and nothing else as the value, and only so many of them. A palette that
+# cannot be read that way fails, and the theme it belongs to is not offered.
+COLORS_MAX_BYTES=65536   # the largest stock palette is under 1 KiB
+COLORS_MAX_KEYS=64       # stock palettes carry about thirty
 emit_colors() {
-  # colors.toml -> flat JSON object. Only `key = "#hex"` lines; ignores the rest.
-  local file="$1"
-  [[ -f $file ]] || { echo '{}'; return; }
-  sed -n 's/^[[:space:]]*\([a-z_]\+\)[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1\t\2/p' "$file" |
+  local file="$1" text
+  text="$(io_read "$file" "$COLORS_MAX_BYTES" 2>/dev/null)" || return 1
+  sed -n 's/^[[:space:]]*\([a-z0-9_]\{1,64\}\)[[:space:]]*=[[:space:]]*"\(#[0-9A-Fa-f]\{6\}\([0-9A-Fa-f]\{2\}\)\{0,1\}\)".*/\1\t\2/p' <<<"$text" |
+    head -n "$COLORS_MAX_KEYS" |
     jq -R -s 'split("\n") | map(select(length > 0) | split("\t")) | map({(.[0]): .[1]}) | add // {}'
 }
 
 emit_themes() {
   local current
-  current="$(omarchy-theme-current 2>/dev/null || cat ~/.local/state/omarchy/current/theme.name 2>/dev/null)"
+  current="$(omarchy-theme-current 2>/dev/null ||
+    io_read "${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/current/theme.name" 256 2>/dev/null | head -n 1)"
 
   local -a rows=()
   local seen=""
@@ -51,8 +75,10 @@ emit_themes() {
     # An entry with no palette can't be previewed or applied — skip stubs and
     # half-removed theme folders rather than showing an unequippable item.
     [[ -f "$dir/colors.toml" ]] || continue
+    (( ${#rows[@]} < MAX_THEMES )) || break
     local id name preview colors
     id="$(basename "$dir")"
+    (( ${#id} <= MAX_NAME )) || continue
     case " $seen " in *" $id "*) continue ;; esac
     seen="$seen $id"
 
@@ -60,12 +86,12 @@ emit_themes() {
     name="$(echo "$id" | tr '-' ' ' | sed 's/\b\(.\)/\u\1/g')"
     preview=""
     [[ -f "$dir/preview.png" ]] && preview="$dir/preview.png"
-    colors="$(emit_colors "$dir/colors.toml")"
+    colors="$(emit_colors "$dir/colors.toml")" || continue
 
     local backgrounds
     backgrounds="$(find "$dir/backgrounds" -maxdepth 1 -type f \
       \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) 2>/dev/null |
-      sort | jq -R -s 'split("\n") | map(select(length > 0))')"
+      sort | head -n "$MAX_BACKGROUNDS" | jq -R -s 'split("\n") | map(select(length > 0))')"
 
     local equipped="false"
     [[ ${current,,} == "${name,,}" ]] && equipped="true"
@@ -182,11 +208,14 @@ TBL
 
 # ---- Chassis: the frame everything hangs on -----------------------------
 
+# The shell's own configuration, read once, bounded, never through a link, and
+# parsed here; everything below that wants a piece of it takes it from this.
 shell_json="$HOME/.config/omarchy/shell.json"
+shell_doc="$(read_json "$shell_json" '{}')"
 
 emit_bar_positions() {
   local current
-  current="$(jq -r '.bar.position // "top"' "$shell_json" 2>/dev/null || echo top)"
+  current="$(jq -r '.bar.position // "top"' <<<"$shell_doc" 2>/dev/null || echo top)"
   printf '%s\n' \
     $'top\tTop\t\tTOP' $'bottom\tBottom\t\tBTM' $'left\tLeft\t\tLEFT' $'right\tRight\t\tRGHT' |
     emit_rows "$current"
@@ -194,7 +223,7 @@ emit_bar_positions() {
 
 emit_bar_transparency() {
   local current
-  current="$(jq -r 'if .bar.transparent == true then "true" else "false" end' "$shell_json" 2>/dev/null || echo false)"
+  current="$(jq -r 'if .bar.transparent == true then "true" else "false" end' <<<"$shell_doc" 2>/dev/null || echo false)"
   printf '%s\n' $'false\tSolid\t\tSOLID' $'true\tTransparent\t\tCLEAR' |
     emit_rows "$current"
 }
@@ -208,7 +237,7 @@ emit_bar_layout() {
     left:   ((.left   // []) | map(if type == "object" then .id else . end)),
     center: ((.center // []) | map(if type == "object" then .id else . end)),
     right:  ((.right  // []) | map(if type == "object" then .id else . end))
-  }' "$shell_json" 2>/dev/null || echo '{"left":[],"center":[],"right":[]}'
+  }' <<<"$shell_doc" 2>/dev/null || echo '{"left":[],"center":[],"right":[]}'
 }
 
 # Widgets whose service is not there to report on. A bar widget is a plugin
@@ -231,11 +260,15 @@ unavailable_widgets() {
 
 emit_bar_widgets() {
   local catalog shell unavailable
-  catalog="$(omarchy-plugin-catalog 2>/dev/null)" || catalog='[]'
-  shell="$(read_json "$shell_json" '{}')"
+  # The catalogue is every installed plugin's manifest; cap it before anything
+  # walks it (the service checks below run once per widget).
+  catalog="$(omarchy-plugin-catalog 2>/dev/null |
+    jq -c --argjson n "$MAX_WIDGETS" 'if type == "array" then .[:$n] else [] end' 2>/dev/null)"
+  [[ -n $catalog ]] || catalog='[]'
+  shell="$shell_doc"
   unavailable="$(unavailable_widgets "$catalog")" || unavailable='[]'
   jq -n --argjson catalog "$catalog" --argjson shell "$shell" \
-        --argjson unavailable "$unavailable" '
+        --argjson unavailable "$unavailable" --argjson maxName "$MAX_NAME" '
     { "omarchy.menu": "MENU", "omarchy.workspaces": "WS", "omarchy.clock": "CLK",
       "omarchy.tray": "TRAY", "omarchy.audio": "VOL", "omarchy.network": "NET",
       "omarchy.bluetooth": "BT", "omarchy.power": "PWR", "omarchy.monitor": "DISP",
@@ -259,10 +292,11 @@ emit_bar_widgets() {
     | map(select(.id as $id
         | (($unavailable | index($id)) | not) or ($placedIds | index($id))))
     | map(. as $w | ($placed | map(select(.id == $w.id)) | first) as $p
-        | { id: $w.id, name: $w.name,
-            short: ($tags[$w.id] // ($w.name | ascii_upcase | .[0:4])),
-            category: ($w.barWidget.category // ""),
-            description: ($w.barWidget.description // $w.description // ""),
+        | ($w.name | tostring | .[:$maxName]) as $name
+        | { id: ($w.id | tostring | .[:$maxName]), name: $name,
+            short: ($tags[$w.id] // ($name | ascii_upcase | .[0:4])),
+            category: ($w.barWidget.category // "" | tostring | .[:$maxName]),
+            description: ($w.barWidget.description // $w.description // "" | tostring | .[:$maxName]),
             defaultSection: (($w.barWidget.defaultSection // "center")
               | if IN("left", "center", "right") then . else "center" end),
             section: ($p.section // ""), index: ($p.index // -1),
@@ -333,15 +367,16 @@ emit_look() {
 emit_fonts() {
   local current
   current="$(omarchy-font-current 2>/dev/null)"
-  omarchy-font-list 2>/dev/null | jq -R -s --arg current "$current" \
-    'split("\n") | map(select(length > 0)) |
-     map({id:., name:., equipped:(. == $current)})'
+  omarchy-font-list 2>/dev/null | head -n "$MAX_FONTS" |
+    jq -R -s --arg current "$current" --argjson maxName "$MAX_NAME" \
+      'split("\n") | map(select(length > 0 and length <= $maxName)) |
+       map({id:., name:., equipped:(. == $current)})'
 }
 
 here="$(dirname "$(readlink -f "$0")")"
 look_live="$(emit_look_live)"
 
-jq -n \
+inventory="$(jq -n \
   --argjson themes "$(emit_themes)" \
   --argjson look "$(emit_look "$look_live")" \
   --argjson lookLive "$look_live" \
@@ -362,4 +397,12 @@ jq -n \
     browsers:$browsers, agents:$agents, barPositions:$barPositions,
     barTransparency:$barTransparency, textSizes:$textSizes,
     barWidgets:$barWidgets, barLayout:$barLayout, lastDeploy:$lastDeploy,
-    look:$look, lookLive:$lookLive, currentBackground:$currentBackground}'
+    look:$look, lookLive:$lookLive, currentBackground:$currentBackground}')" || exit 1
+
+# Bounded by construction, given the caps above; measured anyway, because the
+# screen holds this whole document for as long as it is open.
+if (( ${#inventory} > MAX_INVENTORY_BYTES )); then
+  echo "inventory exceeds $MAX_INVENTORY_BYTES bytes; refusing to hand it over" >&2
+  exit 1
+fi
+printf '%s\n' "$inventory"

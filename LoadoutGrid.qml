@@ -128,6 +128,7 @@ Item {
           }
           spacing: Style.space(1)
           Text {
+            textFormat: Text.PlainText
             width: parent.width
             text: cell.modelData.name || ""
             color: cell.isCursor || cell.isStaged ? root.accent : root.fg
@@ -137,6 +138,7 @@ Item {
             elide: Text.ElideRight
           }
           Text {
+            textFormat: Text.PlainText
             width: parent.width
             text: cell.isStaged ? "FITTED" : cell.isEquipped ? "EQUIPPED" : (cell.modelData.meta || "")
             color: cell.isStaged ? root.warn : cell.isEquipped ? root.good : root.muted

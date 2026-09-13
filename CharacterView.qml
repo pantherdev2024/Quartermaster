@@ -177,6 +177,7 @@ Item {
     height: Style.space(30)
 
     Text {
+      textFormat: Text.PlainText
       id: plateName
       anchors.left: parent.left
       anchors.verticalCenter: parent.verticalCenter
@@ -189,6 +190,7 @@ Item {
     }
 
     Text {
+      textFormat: Text.PlainText
       anchors { left: plateName.right; leftMargin: Style.space(16); right: parent.right }
       anchors.verticalCenter: parent.verticalCenter
       horizontalAlignment: Text.AlignRight
@@ -375,6 +377,7 @@ Item {
         // The name yields to the state word rather than running under it:
         // both are anchored, and the name elides.
         Text {
+          textFormat: Text.PlainText
           id: labelText
           anchors.left: card.rightAligned ? (tagText.visible ? tagText.right : parent.left) : parent.left
           anchors.right: card.rightAligned ? parent.right : (tagText.visible ? tagText.left : parent.right)
@@ -391,6 +394,7 @@ Item {
         }
 
         Text {
+          textFormat: Text.PlainText
           id: tagText
           anchors.left: card.rightAligned ? parent.left : undefined
           anchors.right: card.rightAligned ? undefined : parent.right
@@ -404,6 +408,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         width: parent.width
         horizontalAlignment: card.rightAligned ? Text.AlignRight : Text.AlignLeft
         text: card.multi && root.host ? root.host.barModsSummary : (card.item ? card.item.name : "—")

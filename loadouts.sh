@@ -32,11 +32,11 @@ source "$here/safe-io.sh" || { echo "cannot load safe-io.sh" >&2; exit 1; }
 # reads them anything. Quartermaster runs inside omarchy-shell, so the cost of
 # reading a planted store is paid by the bar and the notifications, not by a
 # program the user can close.
-MAX_FILES=512            # files considered in one listing
-MAX_FILE_BYTES=65536     # bytes read from any one file
-MAX_TOTAL_BYTES=4194304  # bytes accumulated across the whole listing
-MAX_SLOTS=64             # slot entries a loadout may record
-MAX_STRING=2048          # characters any one string field may carry
+MAX_FILES=128            # files considered in one listing
+MAX_FILE_BYTES=16384     # bytes read from any one file
+MAX_TOTAL_BYTES=524288   # bytes accumulated across the whole listing
+MAX_SLOTS=32             # slot entries a loadout may record
+MAX_STRING=2048          # characters any one string field may carry: a bar layout names every widget on the bar in one string, up to scan.sh's MAX_WIDGETS
 
 # ---- The store -------------------------------------------------------------
 

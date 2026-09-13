@@ -42,10 +42,18 @@ done
 # Guard rail. An absolute path in a plan is run as written, so a plan naming a
 # real command would deploy it for real against the machine running the test.
 # Every plan must therefore reach only the stubs.
+# The one exception is the plugin's own look-set.sh with a preset that does not
+# exist, which exits before it touches anything; it stands in for the two
+# scripts the allowlist admits by path.
 run_plan() {
-  if jq -e --arg tmp "$TMP/bin/" 'any(.[]; .[0] | startswith("/") and (startswith($tmp) | not))' \
+  if jq -e --arg tmp "$TMP/bin/" --arg look "$ROOT/look-set.sh" \
+      'any(.[]; .[0] | startswith("/") and (startswith($tmp) | not) and . != $look)' \
       <<<"$1" >/dev/null; then
     fail "plan names an absolute path outside the stub directory: $1"
+  fi
+  if jq -e --arg look "$ROOT/look-set.sh" 'any(.[]; .[0] == $look and .[2] != "no-such-preset")' \
+      <<<"$1" >/dev/null; then
+    fail "plan would run look-set.sh with a preset that might exist: $1"
   fi
   : > "$TRACE"; rm -rf "$STATE"; "$DEPLOY" "$1"
 }
@@ -76,11 +84,56 @@ run_plan '[["omarchy-theme-set","Nord"]]'
 grep -q 'omarchy-theme-set|Nord|skipbg=$' "$TRACE" \
   || fail "theme-set should pick its own background when the plan carries none"
 
-# The command is matched on its basename, so an absolute path still counts.
-run_plan "$(jq -nc --arg bin "$TMP/bin" \
-  '[[($bin + "/omarchy-theme-set"), "Nord"], [($bin + "/omarchy-theme-bg-set"), "/x.png"]]')"
-grep -q 'omarchy-theme-set|.*|skipbg=1' "$TRACE" \
-  || fail "an absolute path to theme-set should still be recognised"
+# --- the allowlist ------------------------------------------------------
+# The plan comes from the QML, which only ever writes literal program names
+# into it. deploy.sh checks that promise rather than trusting it: a plan that
+# names anything but Omarchy's own setters (bare, from PATH) or this plugin's
+# two scripts (by their exact path) is refused whole, before anything runs.
+: > "$TRACE"; rm -rf "$STATE"
+"$DEPLOY" '[["omarchy-theme-set","Nord"],["rm","-rf","/"],["omarchy-bar","position","top"]]' \
+  && fail "a plan naming an unknown program should be refused"
+equals "nothing in a refused plan runs, not even the known parts" "$(trace_names)" ""
+equals "a refused plan reports nothing ok"   "$(jq -r '.ok'     "$STATE/last-deploy.json")" "0"
+equals "a refused plan reports the refusal" "$(jq -r '.failed' "$STATE/last-deploy.json")" "1"
+equals "and names the program"              "$(jq -r '.names'  "$STATE/last-deploy.json")" "rm"
+grep -Fq 'Quartermaster: deploy refused · rm' "$TRACE" || fail "no refusal notification"
+grep -Fq 'refused: rm' "$STATE/deploy.log" || fail "refusal not logged"
+
+# An Omarchy command is admitted by bare name only; a path to one, even to the
+# real one, is not, because the QML never writes one and nothing else should.
+: > "$TRACE"; rm -rf "$STATE"
+"$DEPLOY" "$(jq -nc --arg bin "$TMP/bin" '[[($bin + "/omarchy-theme-set"), "Nord"]]')" \
+  && fail "a path to an Omarchy command should be refused"
+equals "a pathed Omarchy command did not run" "$(trace_names)" ""
+
+# A relative path, a shell, and a name that merely starts like an allowed one.
+for bad in '[["./omarchy-theme-set","Nord"]]' '[["bash","-c","true"]]' '[["omarchy-theme-set-evil","x"]]' \
+           '[["omarchy","theme","set","Nord"]]' '[["","Nord"]]'; do
+  : > "$TRACE"; rm -rf "$STATE"
+  "$DEPLOY" "$bad" 2>/dev/null && fail "should have been refused: $bad"
+  equals "nothing ran for $bad" "$(trace_names)" ""
+done
+
+# The plugin's own scripts are admitted by their exact path. look-set.sh with
+# a preset that does not exist exits without touching anything, so it can
+# stand in for both.
+run_plan "$(jq -nc --arg look "$ROOT/look-set.sh" '[[$look, "gaps", "no-such-preset"]]')"
+grep -Fq -- "-- $ROOT/look-set.sh gaps no-such-preset" "$STATE/deploy.log" \
+  || fail "the plugin's own script was not admitted by its path"
+equals "it ran and reported its own failure" "$(jq -r '.names' "$STATE/last-deploy.json")" "look-set.sh"
+
+# A plan that is not a list of argv lists is refused before the log says
+# anything about deploying, and one longer than a fitting can be is refused
+# whole rather than truncated.
+for shape in '"not a plan"' '[["omarchy-theme-set", 1]]' '[[]]' '[[["omarchy-theme-set"]]]' '{"a":1}'; do
+  : > "$TRACE"; rm -rf "$STATE"
+  "$DEPLOY" "$shape" 2>/dev/null && fail "malformed plan should be refused: $shape"
+  equals "nothing ran for $shape" "$(trace_names)" ""
+done
+: > "$TRACE"; rm -rf "$STATE"
+"$DEPLOY" "$(jq -nc '[range(129) | ["omarchy-bar","position","top"]]')" && fail "an overlong plan should be refused"
+equals "nothing of an overlong plan ran" "$(trace_names)" ""
+grep -Fq 'refused: 129 commands' "$STATE/deploy.log" || fail "overlong plan not logged as refused"
 
 # --- reporting ----------------------------------------------------------
 run_plan '[["omarchy-theme-set","Nord"],["omarchy-bar","transparent","true"]]'
@@ -120,7 +173,7 @@ equals "empty plan reports zero" "$(jq -r '.ok' "$STATE/last-deploy.json")" "0"
 
 # The log accumulates across deploys rather than being truncated each time.
 "$DEPLOY" '[["omarchy-theme-set","Nord"]]'
-equals "log appends" "$(grep -c '^== ' "$STATE/deploy.log")" "4"
+equals "log appends" "$(grep -c '^== .* deploying' "$STATE/deploy.log")" "2"
 
 # ---- The state directory is not written to blind ---------------------------
 # A deploy reports back through two files. Neither is written through a name

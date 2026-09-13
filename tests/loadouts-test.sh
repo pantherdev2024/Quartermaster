@@ -231,7 +231,7 @@ rm -f "$DIR/link.json"
 { printf '{"id":"huge","name":"Huge","slots":{},"savedAt":"2026-01-01T00:00:00Z","junk":"'
   head -c 70000 /dev/zero | tr '\0' 'x'
   printf '"}\n'; } > "$DIR/huge.json"
-[[ $(stat -c %s "$DIR/huge.json") -gt 65536 ]] || fail "the oversized fixture is not oversized"
+[[ $(stat -c %s "$DIR/huge.json") -gt 16384 ]] || fail "the oversized fixture is not oversized"
 equals "an oversized file is skipped" \
   "$("$LOADOUTS" list | jq -r 'map(select(.id == "huge")) | length')" "0"
 rm -f "$DIR/huge.json"
@@ -263,7 +263,7 @@ rm -f "$DIR/extra.json"
 # A store whose files are each acceptable but which together are not stops at
 # the aggregate limit rather than reading all of it into the shell.
 heavy="$TMP/heavy"; mkdir -p "$heavy/omarchy/loadouts"
-pad=$(head -c 50000 /dev/zero | tr '\0' 'z')
+pad=$(head -c 12000 /dev/zero | tr '\0' 'z')
 for i in $(seq 1 120); do
   printf '{"id":"h%s","name":"H%s","slots":{},"savedAt":"2026-01-01T00:00:00Z","junk":"%s"}\n' \
     "$i" "$i" "$pad" > "$heavy/omarchy/loadouts/h$i.json"
@@ -295,7 +295,7 @@ for i in $(seq 1 600); do
     > "$bulk/omarchy/loadouts/b$i.json"
 done
 counted=$("$LOADOUTS" list | jq 'length')
-(( counted <= 512 )) || fail "listing read $counted files, past the cap"
+(( counted <= 128 )) || fail "listing read $counted files, past the cap"
 (( counted > 0 )) || fail "the cap swallowed the whole listing"
 export XDG_DATA_HOME="$TMP/data"
 

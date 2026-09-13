@@ -155,6 +155,7 @@ Item {
     }
 
     Text {
+      textFormat: Text.PlainText
       id: clock
       visible: tok.kind === "clock"
       text: root.horizontal
@@ -191,6 +192,7 @@ Item {
     }
 
     Text {
+      textFormat: Text.PlainText
       id: glyph
       visible: tok.kind === "glyph"
       text: root.glyphFor(tok.modelData)

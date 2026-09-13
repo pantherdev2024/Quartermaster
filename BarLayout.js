@@ -112,6 +112,27 @@ function nudge(layout, id, delta) {
   return next
 }
 
+// A layout as a saved loadout carries it, with every id the catalogue does
+// not know thrown out and every repeat after the first dropped. Saved
+// loadouts are files somebody else may have written (the store is synced
+// between machines), and this is the boundary at which one of those stops
+// being a string and becomes a layout: nothing survives it that could not
+// have been put there through the workbench.
+function restrictLayout(l, knownIds) {
+  var out = {}, seen = {}
+  for (var i = 0; i < SECTIONS.length; i++) {
+    var sec = SECTIONS[i], ids = (l && l[sec]) || []
+    out[sec] = []
+    for (var j = 0; j < ids.length; j++) {
+      var id = ids[j]
+      if (knownIds.indexOf(id) < 0 || seen[id]) continue
+      seen[id] = true
+      out[sec].push(id)
+    }
+  }
+  return out
+}
+
 // Widgets that sit somewhere else in the fitting than live: a different
 // section, or both neighbours changed among the widgets common to both.
 function movedIds(live, want) {
@@ -185,6 +206,7 @@ if (typeof module !== "undefined") {
     toggle: toggle,
     nudge: nudge,
     movedIds: movedIds,
+    restrictLayout: restrictLayout,
     barModsCommands: barModsCommands
   }
 }

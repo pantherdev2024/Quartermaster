@@ -408,22 +408,72 @@ Item {
     return true
   }
 
+  // A saved loadout is a file somebody else may have written: the store is
+  // synced between machines. Every slot value it carries is looked up in the
+  // catalogue before it can become part of the fitting, and only the
+  // catalogue's own id (or, for the bar, only ids the catalogue knows) comes
+  // out the other side. A crafted file can therefore name nothing that the
+  // inventory does not already offer, and nothing it names reaches a command.
+  function catalogueSlots(slots) {
+    var out = {}
+    if (!slots || typeof slots !== "object") return out
+    var themeId = typeof slots.theme === "string" ? root.catalogueValue("theme", slots.theme, "") : ""
+    for (var i = 0; i < root.slotDefs.length; i++) {
+      var id = root.slotDefs[i].id
+      if (!Object.prototype.hasOwnProperty.call(slots, id)) continue
+      var value = slots[id]
+      if (typeof value !== "string" || value === "") continue
+      var kept = root.catalogueValue(id, value, themeId)
+      if (kept !== "") out[id] = kept
+    }
+    return out
+  }
+
+  // The catalogue's id for `value` in `slotId`, or "" when there is none.
+  function catalogueValue(slotId, value, themeId) {
+    if (slotId === "barMods") {
+      var widgets = (root.inventory && root.inventory.barWidgets) || []
+      var known = widgets.map(function(w) { return w.id })
+      // The live layout is the shell's own and may hold entries the catalogue
+      // does not list (the spacer); a loadout may keep those where they are.
+      known = known.concat(BarLayout.flattenLayout(BarLayout.decodeLayout(root.liveLayoutString)))
+      return BarLayout.encodeLayout(BarLayout.restrictLayout(BarLayout.decodeLayout(value), known))
+    }
+    if (slotId === "background") {
+      // A background belongs to the loadout's theme, matched by file name
+      // (the store may have been written under another home directory), and
+      // the path handed on is the one the scan found, never the file's.
+      var themes = (root.inventory && root.inventory.themes) || []
+      var theme = null
+      for (var i = 0; i < themes.length; i++) if (themes[i].id === themeId) theme = themes[i]
+      if (!theme) theme = root.stagedThemeObject
+      var backgrounds = (theme && theme.backgrounds) || []
+      var file = String(value).split("/").pop()
+      for (var b = 0; b < backgrounds.length; b++) if (backgrounds[b].split("/").pop() === file) return backgrounds[b]
+      return ""
+    }
+    var items = root.itemsFor(slotId)
+    for (var j = 0; j < items.length; j++) if (items[j].id === value) return value
+    return ""
+  }
+
   function loadoutItems() {
     var inv = root.inventory
     var saved = (inv && inv.loadouts) || []
     var themes = (inv && inv.themes) || []
     var out = saved.map(function(l) {
+      var slots = root.catalogueSlots(l.slots)
       var theme = null
-      for (var i = 0; i < themes.length; i++) if (themes[i].id === l.slots.theme) theme = themes[i]
+      for (var i = 0; i < themes.length; i++) if (themes[i].id === slots.theme) theme = themes[i]
       var parts = []
       if (theme) parts.push(theme.name)
-      if (l.slots.terminal) parts.push(l.slots.terminal)
-      if (l.slots.barPosition) parts.push("bar " + l.slots.barPosition)
+      if (slots.terminal) parts.push(slots.terminal)
+      if (slots.barPosition) parts.push("bar " + slots.barPosition)
       return {
-        id: l.id, name: l.name, slots: l.slots, savedAt: l.savedAt,
+        id: l.id, name: l.name, slots: slots, savedAt: l.savedAt,
         preview: theme && theme.preview ? theme.preview : "",
         meta: parts.join(" · "),
-        equipped: root.loadoutIsLive(l.slots)
+        equipped: root.loadoutIsLive(slots)
       }
     })
     out.push({ id: "__new", name: "NEW LOADOUT", meta: "save current fitting", isNew: true })
@@ -1160,6 +1210,7 @@ Item {
             }
 
             Text {
+              textFormat: Text.PlainText
               width: parent.width
               text: root.promptMode === "name"
                 ? "Records the fitting as it stands — staged choices included — under a new name."
@@ -1198,6 +1249,7 @@ Item {
                   bracketInset: 2
 
                   Text {
+                    textFormat: Text.PlainText
                     id: choiceName
                     anchors { left: parent.left; leftMargin: Style.space(14); verticalCenter: parent.verticalCenter }
                     text: choice.modelData.isNew ? "󰐕  " + choice.modelData.name : choice.modelData.name
@@ -1207,6 +1259,7 @@ Item {
                     font.bold: true
                   }
                   Text {
+                    textFormat: Text.PlainText
                     anchors { left: choiceName.right; leftMargin: Style.space(12); right: parent.right; rightMargin: Style.space(14); verticalCenter: parent.verticalCenter }
                     horizontalAlignment: Text.AlignRight
                     elide: Text.ElideLeft
@@ -1264,6 +1317,7 @@ Item {
             }
 
             Text {
+              textFormat: Text.PlainText
               text: root.promptMode === "name"
                 ? "ENTER  save       ESC  " + (root.savedLoadouts.length > 0 ? "back" : "cancel")
                 : "↑↓  choose       ENTER  save       ESC  cancel"
@@ -1312,6 +1366,7 @@ Item {
             spacing: Style.space(12)
 
             Text {
+              textFormat: Text.PlainText
               text: root.confirmAction === "delete" ? "DELETE LOADOUT?" : "DISCARD FITTING?"
               color: root.warn
               font.family: root.uiFont
@@ -1321,6 +1376,7 @@ Item {
             }
 
             Text {
+              textFormat: Text.PlainText
               width: parent.width
               text: {
                 if (root.confirmAction === "delete")
@@ -1335,6 +1391,7 @@ Item {
             }
 
             Text {
+              textFormat: Text.PlainText
               text: root.confirmAction === "delete" ? "ENTER  delete       ESC  keep" : "ENTER  discard       ESC  keep fitting"
               color: root.muted
               font.family: root.uiFont
@@ -1381,6 +1438,7 @@ Item {
             }
 
             Text {
+              textFormat: Text.PlainText
               text: "EQUIP SYSTEM // " + (root.bootOpen ? "STANDBY"
                 : root.workbenchOpen ? "BAR MODS"
                 : root.categories[root.currentCategoryIndex].label)
@@ -1406,6 +1464,7 @@ Item {
             edgeWidth: Style.space(3)
 
             Text {
+              textFormat: Text.PlainText
               id: statusLabel
               anchors.centerIn: parent
               anchors.horizontalCenterOffset: Style.space(2)
@@ -1492,6 +1551,7 @@ Item {
                     spacing: Style.space(8)
 
                     Text {
+                      textFormat: Text.PlainText
                       text: tab.modelData.icon
                       color: tab.isActive ? root.accent : root.fg
                       font.family: root.uiFont
@@ -1499,6 +1559,7 @@ Item {
                       anchors.verticalCenter: parent.verticalCenter
                     }
                     Text {
+                      textFormat: Text.PlainText
                       visible: tab.isActive
                       text: tab.modelData.label
                       color: root.accent
@@ -1522,6 +1583,7 @@ Item {
             }
 
             Text {
+              textFormat: Text.PlainText
               anchors { left: tabs.right; leftMargin: Style.space(14); verticalCenter: tabs.verticalCenter }
               text: String(root.currentCategoryIndex + 1).padStart(2, "0") + " / " + String(root.categories.length).padStart(2, "0")
               color: root.muted
@@ -1685,6 +1747,7 @@ Item {
                   stroke: root.line
                   anchors.verticalCenter: parent.verticalCenter
                   Text {
+                    textFormat: Text.PlainText
                     id: keyText
                     anchors.centerIn: parent
                     text: hint.modelData[0]
@@ -1696,6 +1759,7 @@ Item {
                   }
                 }
                 Text {
+                  textFormat: Text.PlainText
                   text: hint.modelData[1].toUpperCase()
                   color: root.muted
                   font.family: root.uiFont
