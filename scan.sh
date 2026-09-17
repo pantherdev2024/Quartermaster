@@ -364,13 +364,16 @@ emit_look() {
 
 # ---- Outfit -------------------------------------------------------------
 
+# The id is the family name exactly as omarchy-font-set takes it. The name
+# drops a trailing "Nerd Font", which every patched face carries and which
+# elides the face's own name out of a tag that has room for one of the two.
 emit_fonts() {
   local current
   current="$(omarchy-font-current 2>/dev/null)"
   omarchy-font-list 2>/dev/null | head -n "$MAX_FONTS" |
     jq -R -s --arg current "$current" --argjson maxName "$MAX_NAME" \
       'split("\n") | map(select(length > 0 and length <= $maxName)) |
-       map({id:., name:., equipped:(. == $current)})'
+       map({id:., name:(sub(" Nerd Font( Mono| Propo)?$"; "")), equipped:(. == $current)})'
 }
 
 here="$(dirname "$(readlink -f "$0")")"
