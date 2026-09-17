@@ -271,15 +271,20 @@ Item {
             visible: cell.isEquipped || cell.isFitted
           }
 
+          // A click previews the cell, as ← → do; a second click on the cell
+          // the cursor is already on, or a double-click, fits it, as ENTER
+          // does. The pointer can do the whole browse-then-fit on its own.
           MouseArea {
             anchors.fill: parent
             onClicked: {
               if (!root.host) return
+              if (root.focused && cell.isSelected) { root.host.fitPreview(); return }
               root.host.slotIndex = root.host.slotDefs.findIndex(function(d) {
                 return d.id === root.slotDef.id
               })
               root.host.previewItem(cell.modelData.id)
             }
+            onDoubleClicked: if (root.host) root.host.fitPreview()
           }
         }
       }

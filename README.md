@@ -157,7 +157,9 @@ row back out of your own config.
 - `↑ ↓` move between slots, `← →` browse that slot's inventory
 - BAR MODS has no inventory to browse: `← →` do nothing there and `ENTER`
   opens its workbench, which takes over the screen
-- `ENTER` fits the item under the cursor into its slot
+- `ENTER` fits the item under the cursor into its slot; `BACKSPACE` takes a
+  fitted item back out, so the slot is live again. With the pointer, a click
+  previews a cell and a second click, or a double-click, fits it
 - `D` deploys the fitting for real and closes the screen, from either
   screen; clicking the pill in the top corner does the same
 - `ESC` steps back from the equip screen to the boot screen and closes from

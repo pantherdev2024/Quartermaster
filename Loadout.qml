@@ -711,6 +711,22 @@ Item {
     root.statusText = ""
   }
 
+  // BACKSPACE: take the fitted item back out of its slot, so the slot is live
+  // again, without touching the rest of the fitting. A background fitted
+  // under a fitted theme goes with the theme, as it does on a fit.
+  function unfitSlot() {
+    if (root.promptOpen || root.confirmOpen || root.applying) return
+    var id = root.currentSlot.id
+    if (!root.staged[id]) return
+    var next = {}
+    for (var k in root.staged) if (k !== id) next[k] = root.staged[k]
+    if (id === "theme") next["background"] = ""
+    next["loadouts"] = ""
+    root.staged = next
+    root.clearPreview()
+    root.statusText = ""
+  }
+
   // The fitting as shown: previewed where previewed, fitted where fitted,
   // live otherwise. Saving records what is on screen.
   function currentFitting() {
@@ -1181,6 +1197,8 @@ Item {
           root.deploy()
         } else if (k === Qt.Key_S) {
           root.openSavePrompt()
+        } else if (k === Qt.Key_Backspace) {
+          root.unfitSlot()
         } else if (k === Qt.Key_X || k === Qt.Key_Delete) {
           root.deleteCurrentLoadout()
         } else {
@@ -1765,9 +1783,11 @@ Item {
               if (!root.compact) wb.push(["D", "fit + deploy"])
               return wb.concat([["ESC", "cancel"]])
             }
-            if (root.currentSlot.multi) return [["TAB", "category"], ["↑↓", "slot"], ["ENTER", "open workbench"]].concat(tail)
-            if (root.previewing) return [["←→", "browse"], ["ENTER", "fit"]].concat(tail)
-            return [["TAB", "category"], ["↑↓", "slot"], ["←→", "browse"], ["ENTER", "fit"]].concat(tail)
+            // A slot that holds a fitted item offers to take it back out.
+            var unfit = root.staged[root.currentSlot.id] ? [["⌫", "unfit"]] : []
+            if (root.currentSlot.multi) return [["TAB", "category"], ["↑↓", "slot"], ["ENTER", "open workbench"]].concat(unfit, tail)
+            if (root.previewing) return [["←→", "browse"], ["ENTER", "fit"]].concat(unfit, tail)
+            return [["TAB", "category"], ["↑↓", "slot"], ["←→", "browse"], ["ENTER", "fit"]].concat(unfit, tail)
           }
 
           Row {
