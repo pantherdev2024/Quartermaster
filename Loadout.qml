@@ -966,6 +966,17 @@ Item {
     else root.open("{}")
   }
 
+  // ESC, and a click on the backdrop: one step out from wherever the screen
+  // is. The workbench drops its preview, the equip screen goes back to the
+  // boot screen, and the boot screen closes, asking first if anything is
+  // fitted but not deployed.
+  function stepBack() {
+    if (root.promptOpen || root.confirmOpen) return
+    if (root.workbenchOpen) root.closeWorkbench(false)
+    else if (root.bootOpen) root.requestClose()
+    else root.backToBoot()
+  }
+
   function loadInventory(raw) {
     try {
       root.inventory = JSON.parse(raw)
@@ -1125,7 +1136,7 @@ Item {
 
     MouseArea {
       anchors.fill: parent
-      onClicked: root.requestClose()
+      onClicked: root.stepBack()
     }
 
     Item {
@@ -1184,9 +1195,9 @@ Item {
           root.moveWithinSlot(-1)
         } else if (k === Qt.Key_Right || k === Qt.Key_L) {
           root.moveWithinSlot(1)
-        } else if (k === Qt.Key_Tab || k === Qt.Key_E || k === Qt.Key_BracketRight) {
+        } else if (k === Qt.Key_Tab) {
           root.moveCategory(1)
-        } else if (k === Qt.Key_Backtab || k === Qt.Key_Q || k === Qt.Key_BracketLeft) {
+        } else if (k === Qt.Key_Backtab) {
           root.moveCategory(-1)
         } else if (k >= Qt.Key_1 && k < Qt.Key_1 + root.categories.length) {
           root.selectCategory(root.categories[k - Qt.Key_1].id)
@@ -1199,8 +1210,6 @@ Item {
           root.openSavePrompt()
         } else if (k === Qt.Key_Backspace) {
           root.unfitSlot()
-        } else if (k === Qt.Key_X || k === Qt.Key_Delete) {
-          root.deleteCurrentLoadout()
         } else {
           return
         }
@@ -1532,7 +1541,7 @@ Item {
               anchors.centerIn: parent
               anchors.horizontalCenterOffset: Style.space(2)
               text: (root.statusText
-                || (root.dirty ? "D  DEPLOY LOADOUT"
+                || (root.dirty ? "D  DEPLOY " + root.stagedCount + (root.stagedCount === 1 ? " CHANGE" : " CHANGES")
                   : root.lastDeployFailed ? "LAST DEPLOY FAILED · " + String(root.lastDeploy.names || "")
                   : "SYNCED")).toUpperCase()
               color: root.dirty || root.lastDeployFailed ? root.warn : root.fg
@@ -1783,11 +1792,13 @@ Item {
               if (!root.compact) wb.push(["D", "fit + deploy"])
               return wb.concat([["ESC", "cancel"]])
             }
-            // A slot that holds a fitted item offers to take it back out.
+            // A slot that holds a fitted item offers to take it back out; a row
+            // with one item has nothing to browse and says so by silence.
             var unfit = root.staged[root.currentSlot.id] ? [["⌫", "unfit"]] : []
+            var browse = root.itemsFor(root.currentSlot.id).length > 1 ? [["←→", "browse"]] : []
             if (root.currentSlot.multi) return [["TAB", "category"], ["↑↓", "slot"], ["ENTER", "open workbench"]].concat(unfit, tail)
-            if (root.previewing) return [["←→", "browse"], ["ENTER", "fit"]].concat(unfit, tail)
-            return [["TAB", "category"], ["↑↓", "slot"], ["←→", "browse"], ["ENTER", "fit"]].concat(unfit, tail)
+            if (root.previewing) return browse.concat([["ENTER", "fit"]], unfit, tail)
+            return [["TAB", "category"], ["↑↓", "slot"]].concat(browse, [["ENTER", "fit"]], unfit, tail)
           }
 
           Row {

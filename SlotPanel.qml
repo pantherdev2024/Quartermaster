@@ -302,8 +302,10 @@ Item {
   }
 
   // The slot's glyph, name and count at the start of its row, in the same
-  // caption the character's tags use. FITTED takes the count line in the
-  // warning colour; a multi slot counts what is on over what there is.
+  // caption the character's tags use. The row under the cursor counts its
+  // position over its stock, since a row shows five cells of what may be
+  // twenty-five; elsewhere FITTED takes the count line in the warning
+  // colour, and a multi slot counts what is on over what there is.
   component SlotLabel: Item {
     id: block
     anchors { left: parent.left; leftMargin: Style.space(12); top: parent.top; bottom: parent.bottom }
@@ -339,10 +341,11 @@ Item {
         textFormat: Text.PlainText
         width: parent.width
         text: root.stockCount === 0 ? "NONE"
-          : root.staged ? "FITTED"
           : root.multi ? String(root.onCount).padStart(2, "0") + " / " + String(root.stockCount).padStart(2, "0")
+          : root.focused ? String(root.selected + 1).padStart(2, "0") + " / " + String(root.stockCount).padStart(2, "0")
+          : root.staged ? "FITTED"
           : String(root.stockCount).padStart(2, "0")
-        color: root.staged ? root.warn : root.muted
+        color: root.staged && !root.focused ? root.warn : root.muted
         font.family: root.uiFont
         font.pixelSize: Style.font.caption
         font.letterSpacing: 1.5
