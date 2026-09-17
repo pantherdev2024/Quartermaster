@@ -30,14 +30,16 @@ Item {
   readonly property color line: host ? host.line : Color.muted
   readonly property string uiFont: host ? host.uiFont : Style.font.menuFamily
 
-  // Tiles are a fixed, small size: the grid is meant to sit beside the
-  // mission card, not fill a pane. Each cell carries a pad on every side so
-  // the cursor brackets and the equipped ring, which paint just outside a
-  // tile, are not clipped at the grid's edges; the grid itself is pulled up
-  // and left by that pad so the first tile still sits flush with the kicker.
+  // Tiles are cut to the size the boot screen hands in, so they grow with
+  // the mission card beside them rather than sitting fixed and small under a
+  // desktop's worth of room. Each cell carries a pad on every side so the
+  // cursor brackets and the equipped ring, which paint just outside a tile,
+  // are not clipped at the grid's edges; the grid itself is pulled up and
+  // left by that pad so the first tile still sits flush with the kicker.
+  property real tileWidth: Style.space(150)
   readonly property real pad: Style.space(6)
-  readonly property real cardWidth: Style.space(150)
-  readonly property real cardHeight: Style.space(112)
+  readonly property real cardWidth: tileWidth
+  readonly property real cardHeight: Math.round(tileWidth * 0.75)
   readonly property real captionHeight: Style.space(38)
   implicitWidth: columns * cardWidth + (columns - 1) * 2 * pad
 
@@ -116,7 +118,7 @@ Item {
             asynchronous: true
             cache: true
             visible: status === Image.Ready
-            sourceSize.width: 320
+            sourceSize.width: 480
           }
         }
 

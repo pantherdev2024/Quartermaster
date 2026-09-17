@@ -27,10 +27,22 @@ Item {
   readonly property color line: host ? host.line : Color.muted
   readonly property string uiFont: host ? host.uiFont : Style.font.menuFamily
 
-  // The card sets the group's height; a short output shrinks it and the
-  // grid's visible rows with it rather than pushing the hints away.
-  readonly property real cardHeight: Math.min(Style.space(380), Math.max(Style.space(240), height - Style.space(60)))
+  // The card sets the group's height, and the group is sized from the pane:
+  // the card takes most of the height on offer, the tiles are cut from the
+  // card, and both stop at a floor a laptop panel can still show and a
+  // ceiling a tall monitor does not run past. The width check is for the
+  // odd pane that is taller than it is wide: the card, the dividers and
+  // three tiles across come to two card heights and change, and must fit.
+  readonly property real cardHeight: {
+    var byHeight = height * 0.64
+    var byWidth = (width - root.dividerGap * 2 - 1 - grid.pad * 4) / (0.74 + 3 * root.tileShare)
+    return Math.round(Math.min(Style.space(620), Math.max(Style.space(300), Math.min(byHeight, byWidth))))
+  }
   readonly property real cardWidth: Math.round(cardHeight * 0.74)
+  // A loadout tile's width as a share of the card's height: three across
+  // read as the card's equal on a desktop and still fit beside it on a
+  // laptop.
+  readonly property real tileShare: 0.42
   readonly property real kickerGap: Style.space(12)
   readonly property real dividerGap: Style.space(44)
 
@@ -292,6 +304,7 @@ Item {
       id: grid
       anchors { left: divider.right; leftMargin: root.dividerGap; top: card.top; bottom: card.bottom }
       width: implicitWidth
+      tileWidth: Math.round(root.cardHeight * root.tileShare)
       host: root.host
     }
   }
