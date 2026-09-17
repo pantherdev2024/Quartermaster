@@ -24,7 +24,7 @@ Item {
   readonly property int selected: host ? host.selectedIndexFor(slotDef.id) : 0
   readonly property bool focused: host && host.currentSlot && host.currentSlot.id === slotDef.id
   // Fitted: the slot holds a change that has not been deployed.
-  readonly property bool staged: host && host.staged[slotDef.id] && host.staged[slotDef.id] !== "__new" ? true : false
+  readonly property bool staged: host ? host.isFitted(slotDef.id) : false
   readonly property string fittedId: host && host.staged[slotDef.id] ? String(host.staged[slotDef.id]) : ""
 
   readonly property color fg: host ? host.fg : Color.foreground

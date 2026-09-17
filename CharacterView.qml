@@ -146,10 +146,10 @@ Item {
     MiniDesktop {
       id: preview
       anchors { fill: parent; margins: Style.space(5) }
-      colors: root.host && root.host.stagedThemeObject ? root.host.stagedThemeObject.colors : ({})
+      colors: root.host && root.host.previewThemeObject ? root.host.previewThemeObject.colors : ({})
       wallpaper: root.host ? root.host.previewWallpaper : ""
       fontFamily: root.host ? root.host.previewFont : "monospace"
-      themeName: root.host && root.host.stagedThemeObject ? root.host.stagedThemeObject.name : ""
+      themeName: root.host && root.host.previewThemeObject ? root.host.previewThemeObject.name : ""
       terminalName: root.host ? root.host.previewTerminal : ""
       editorName: root.host ? root.host.previewEditor : ""
       browserName: root.host ? root.host.previewBrowser : ""
@@ -165,6 +165,8 @@ Item {
       rounding: root.host ? root.host.previewLook.rounding : 0
       blurOn: root.host ? root.host.previewLook.blur : false
       shadowOn: root.host ? root.host.previewLook.shadow : false
+      reveal: root.host && root.host.currentSlot ? root.host.currentSlot.id === "background" : false
+      prefetch: root.host ? root.host.prefetchWallpapers : []
     }
   }
 
@@ -181,7 +183,7 @@ Item {
       id: plateName
       anchors.left: parent.left
       anchors.verticalCenter: parent.verticalCenter
-      text: root.host && root.host.stagedThemeObject ? root.host.stagedThemeObject.name.toUpperCase() : ""
+      text: root.host && root.host.previewThemeObject ? root.host.previewThemeObject.name.toUpperCase() : ""
       color: root.fg
       font.family: root.uiFont
       font.pixelSize: Style.font.heading
@@ -199,7 +201,7 @@ Item {
         if (!root.host) return ""
         var name = root.host.activeLoadoutName
         var state = root.host.previewing
-          ? root.host.previewTag(root.host.previewSlot) + "  ·  ENTER FITS"
+          ? "PREVIEW  ·  ENTER FITS"
           : root.host.dirty ? "FITTED  ·  D DEPLOYS" : "EQUIPPED"
         if (name) return "LOADOUT  " + name.toUpperCase() + "  ·  " + state
         return root.host.previewing || root.host.dirty ? state : "CURRENT CONFIGURATION"
@@ -330,14 +332,13 @@ Item {
 
     readonly property var item: root.host ? root.host.selectedItem(def.id) : null
     readonly property bool focused: root.host && root.host.currentSlot && root.host.currentSlot.id === def.id
-    readonly property bool staged: root.host && root.host.staged[def.id] ? true : false
+    readonly property bool staged: root.host ? root.host.isFitted(def.id) : false
     // Previewed: the cursor is trying something on that differs from what
     // the slot holds (fitted, else live).
     readonly property bool previewed: root.host && root.host.preview[def.id] !== undefined
       && root.host.preview[def.id] !== (root.host.staged[def.id] || root.host.equippedId(def.id))
     readonly property bool multi: def.multi === true
-    readonly property string tag: previewed ? (root.host ? root.host.previewTag(def.id) : "PREVIEW")
-      : staged ? "FITTED" : ""
+    readonly property string tag: previewed ? "PREVIEW" : staged ? "FITTED" : ""
     readonly property color tagColor: previewed ? root.accent : root.warn
     readonly property bool rightAligned: side === "left"
     readonly property bool hot: focused || mouse.containsMouse

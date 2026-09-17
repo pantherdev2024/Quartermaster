@@ -446,7 +446,7 @@ Item {
       var themes = (root.inventory && root.inventory.themes) || []
       var theme = null
       for (var i = 0; i < themes.length; i++) if (themes[i].id === themeId) theme = themes[i]
-      if (!theme) theme = root.stagedThemeObject
+      if (!theme) theme = root.fittedThemeObject
       var backgrounds = (theme && theme.backgrounds) || []
       var file = String(value).split("/").pop()
       for (var b = 0; b < backgrounds.length; b++) if (backgrounds[b].split("/").pop() === file) return backgrounds[b]
@@ -496,9 +496,9 @@ Item {
     if (slotId === "barMods") return root.modItems(root.effectiveLayoutString)
     if (root.lookSlotIds.indexOf(slotId) !== -1) return (inv.look && inv.look[slotId]) || []
     if (slotId === "background") {
-      // Backgrounds belong to whichever theme is staged, so this slot's
-      // contents change as the theme cursor moves.
-      var t = root.stagedThemeObject
+      // Backgrounds belong to whichever theme the character wears, so this
+      // slot's contents follow the theme cursor.
+      var t = root.previewThemeObject
       if (!t || !t.backgrounds) return []
       // The live background resolves through ~/.local/state/omarchy/current/
       // theme, a different path from the theme's own folder, so match on
@@ -525,16 +525,23 @@ Item {
     return it ? it.id : fallback
   }
 
-  // The theme object driving the whole preview: staged if the user has moved
-  // the cursor, otherwise whatever is actually equipped.
-  readonly property var stagedThemeObject: {
+  // The theme the character wears: previewed where the cursor is trying one
+  // on, else fitted, else whatever is actually equipped -- the same
+  // fallthrough every other slot's preview value takes, so the theme row
+  // repaints the mock as it is browsed like any other row.
+  function themeObject(wanted) {
     var themes = (root.inventory && root.inventory.themes) || []
-    var wanted = root.staged["theme"]
     for (var i = 0; i < themes.length; i++) {
       if (wanted ? themes[i].id === wanted : themes[i].equipped) return themes[i]
     }
     return themes.length > 0 ? themes[0] : null
   }
+  readonly property var previewThemeObject: root.themeObject(root.preview["theme"] || root.staged["theme"])
+  // The theme the fitting holds, ignoring the cursor. A saved loadout that
+  // names a background but no theme is resolved against this, so browsing the
+  // theme row does not re-catalogue every saved loadout against whichever
+  // theme the cursor happens to be on.
+  readonly property var fittedThemeObject: root.themeObject(root.staged["theme"])
 
   // The theme that is actually live, used to colour the chrome's gauges.
   readonly property var liveThemeObject: {
@@ -543,24 +550,48 @@ Item {
     return null
   }
 
-  readonly property string previewWallpaper: {
+  // The wallpaper the character wears, by the same lookup as every other
+  // slot: previewed, else fitted, else live, else the theme's first. The
+  // lookup only knows the shown theme's own wallpapers, so a wallpaper fitted
+  // from one theme does not carry under another theme's palette while that
+  // theme is browsed, and the equipped theme shows the wallpaper that is
+  // really up rather than the first in its folder.
+  readonly property string previewWallpaper: root.selectedId("background", "")
+
+  // The wallpaper the character would wear under a given theme: the same
+  // answer the lookup above gives once that theme is the one shown.
+  function wallpaperOf(theme) {
+    var list = (theme && theme.backgrounds) || []
+    if (list.length === 0) return ""
     var staged = root.staged["background"]
-    if (staged) return staged
-    var t = root.stagedThemeObject
-    if (t && t.backgrounds && t.backgrounds.length > 0) return t.backgrounds[0]
-    return ""
+    if (staged && list.indexOf(staged) >= 0) return staged
+    if (theme.equipped) {
+      var live = String((root.inventory && root.inventory.currentBackground) || "").split("/").pop()
+      for (var i = 0; i < list.length; i++) if (list[i].split("/").pop() === live) return list[i]
+    }
+    return list[0]
   }
 
-  // Which slots the mock desktop follows on the cursor, and which only on the
-  // fit. stagedThemeObject and previewWallpaper above read root.staged and
-  // never root.preview, so browsing those two rows moves the cursor and
-  // repaints nothing -- and a callout claiming PREVIEW there would be naming
-  // something the screen is not showing. It says SELECTED instead: the item
-  // is picked, and the nameplate's ENTER FITS says how to see it. Make either
-  // of those two read root.preview and its id comes out of this list.
-  readonly property var showsOnFit: ["theme", "background"]
-  function previewTag(slotId) {
-    return root.showsOnFit.indexOf(String(slotId)) !== -1 ? "SELECTED" : "PREVIEW"
+  // Wallpapers the cursor is about to reach: two on either side of it along
+  // the row it is on, decoded ahead so the step to them is a cache hit rather
+  // than a decode of a wallpaper several thousand pixels wide. Only the theme
+  // and background rows move the wallpaper; every other row prefetches nothing.
+  readonly property var prefetchWallpapers: {
+    var slot = root.currentSlot.id
+    if (slot !== "theme" && slot !== "background") return []
+    var items = root.itemsFor(slot)
+    if (items.length < 2) return []
+    var at = root.selectedIndexFor(slot)
+    var out = []
+    for (var d = 1; d <= 2; d++) {
+      var pair = [(at + d) % items.length, (at - d + items.length) % items.length]
+      for (var k = 0; k < pair.length; k++) {
+        var it = items[pair[k]]
+        var path = slot === "background" ? String(it.id) : root.wallpaperOf(it)
+        if (path && path !== root.previewWallpaper && out.indexOf(path) < 0) out.push(path)
+      }
+    }
+    return out
   }
 
   readonly property string previewFont: root.selectedId("font", "monospace")
@@ -604,6 +635,20 @@ Item {
     return n
   }
   readonly property bool dirty: stagedCount > 0
+
+  // A slot reads FITTED when the fitting holds a value the slot can show
+  // right now. A wallpaper fitted from one theme is still in the fitting
+  // while another theme is browsed, but that row cannot show it, so its
+  // label and its tag stay quiet rather than say FITTED over a wallpaper
+  // that is not the fitted one; fitting the theme clears it anyway.
+  function isFitted(slotId) {
+    var id = root.staged[slotId]
+    if (!id || id === "__new") return false
+    if (slotId === "barMods") return true
+    var items = root.itemsFor(slotId)
+    for (var i = 0; i < items.length; i++) if (items[i].id === id) return true
+    return false
+  }
 
   // ---- Preview and fit ---------------------------------------------------
   function isLiveValue(slotId, id) {
@@ -996,7 +1041,7 @@ Item {
   // ---- Chrome palette --------------------------------------------------
   // The screen's own chrome follows the live Omarchy theme through the shared
   // Color/Style singletons, exactly like the stock menu and clipboard
-  // overlays. Only the MiniDesktop repaints in the *staged* theme — that is
+  // overlays. Only the MiniDesktop repaints in the *previewed* theme — that is
   // the preview, and the chrome around it should hold still while you browse.
   readonly property color fg: Color.menu.text
   readonly property color muted: Color.muted

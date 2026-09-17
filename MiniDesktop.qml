@@ -43,6 +43,16 @@ Item {
   property bool blurOn: false
   property bool shadowOn: false
 
+  // Reveal: the desktop's own show-desktop gesture. Three tiled windows cover
+  // the desk, so a wallpaper only ever shows through the gaps and the bar;
+  // while the background row is being browsed the windows recede to a ghost
+  // of their outline and the dimming over the wallpaper drops away, so the
+  // picture reads at full size and true colour with the bar still over it.
+  // No transition: it is a state, not an effect.
+  property bool reveal: false
+  // Wallpaper paths to decode ahead of the cursor; see the host.
+  property var prefetch: []
+
   // Before the inventory lands the layout is empty; show a plausible bar
   // rather than a bare strip.
   readonly property var layoutOrDefault: {
@@ -113,10 +123,13 @@ Item {
     radius: root.u * 1.5
   }
 
+  // Two images, so browsing along the theme row never drops the picture to
+  // flat colour while the next wallpaper decodes: `wallNext` loads whatever
+  // is wanted, and `wall`, the one that is shown, takes that source only once
+  // it is ready. The second load is a cache hit, so the swap is one frame.
   Image {
     id: wall
     anchors.fill: parent
-    source: root.wallpaper ? "file://" + root.wallpaper : ""
     fillMode: Image.PreserveAspectCrop
     asynchronous: true
     cache: true
@@ -125,12 +138,40 @@ Item {
     // larger than this surface could ever show.
     sourceSize.width: 1280
   }
+  Image {
+    id: wallNext
+    anchors.fill: parent
+    visible: false
+    source: root.wallpaper ? "file://" + root.wallpaper : ""
+    fillMode: Image.PreserveAspectCrop
+    asynchronous: true
+    cache: true
+    sourceSize.width: 1280
+    onStatusChanged: {
+      if (status === Image.Ready) wall.source = source
+      else if (status === Image.Null || status === Image.Error) wall.source = ""
+    }
+  }
+  // Decoded ahead of the cursor and never drawn. Holding a reference is what
+  // keeps a decode in the pixmap cache; the same sourceSize as the two
+  // images above is what makes it the same cache entry.
+  Repeater {
+    model: root.prefetch
+    Image {
+      required property string modelData
+      visible: false
+      source: "file://" + modelData
+      asynchronous: true
+      cache: true
+      sourceSize.width: 1280
+    }
+  }
 
   // Fade the wallpaper slightly so mock windows stay legible on busy images.
   Rectangle {
     anchors.fill: parent
     color: root.bg
-    opacity: wall.status === Image.Ready ? 0.25 : 0
+    opacity: wall.status === Image.Ready && !root.reveal ? 0.25 : 0
     radius: root.u * 1.5
   }
 
@@ -149,7 +190,7 @@ Item {
   MultiEffect {
     anchors.fill: wall
     source: wall
-    visible: root.blurOn && wall.status === Image.Ready
+    visible: root.blurOn && !root.reveal && wall.status === Image.Ready
     blurEnabled: true
     blur: 0.9
     blurMax: 40
@@ -206,6 +247,7 @@ Item {
     default property alias content: inner.data
 
     x: place.x; y: place.y; width: place.width; height: place.height
+    opacity: root.reveal ? 0.15 : 1
 
     Rectangle {
       id: body

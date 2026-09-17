@@ -13,7 +13,7 @@ TechFrame {
 
   readonly property var slot: host ? host.currentSlot : ({})
   readonly property var item: host ? host.selectedItem(slot.id) : null
-  readonly property bool staged: host && host.staged[slot.id] && host.staged[slot.id] !== "__new" ? true : false
+  readonly property bool staged: host ? host.isFitted(slot.id) : false
   readonly property bool previewed: host && host.preview[slot.id] !== undefined && host.preview[slot.id] !== "__new"
     && host.preview[slot.id] !== (host.staged[slot.id] || host.equippedId(slot.id))
   readonly property color fg: host ? host.fg : Color.foreground
@@ -89,7 +89,7 @@ TechFrame {
         textFormat: Text.PlainText
         id: stateWord
         anchors.right: parent.right
-        text: root.previewed ? (root.host ? root.host.previewTag(root.slot.id) : "PREVIEW")
+        text: root.previewed ? "PREVIEW"
           : root.staged ? "FITTED"
           : root.kind === "workbench" ? "LIVE"
           : (root.item && root.item.equipped ? "EQUIPPED" : "")

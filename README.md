@@ -182,13 +182,6 @@ the fitting is what you are building, still touching nothing. **D deploys**:
 the fitting's commands run and the screen closes. Nothing on the real system
 changes before D.
 
-Theme and background are the exception: they repaint on the fit rather than on
-the browse. Arrowing along those two rows moves the cursor and names the item,
-and the mock desktop follows once you press `ENTER`, where every other row
-follows the cursor itself. Fitting is still free — it touches nothing real and
-`ESC` discards it — so trying a theme on and backing out costs a keypress
-rather than a change.
-
 ## Categories and slots
 
 Slots are grouped into three categories, picked from the glyph pills across
@@ -219,8 +212,7 @@ tooling wired into it. All three show on the mini desktop: it repaints, scales
 its type, moves its bar, drops the bar fill, mirrors the bar's widget layout,
 spaces and rounds and borders its windows the way Hyprland would, and names
 the fitted terminal, editor, browser and agent in its windows — everything as
-you browse, except the palette and the wallpaper, which follow once you fit
-them.
+you browse.
 
 ### Hyprland look
 
@@ -379,7 +371,10 @@ capture can only show what is already applied, and this overlay covers the
 screen anyway. Mocking it is what makes previewing an unapplied fitting
 possible: it tiles three windows the way Hyprland's dwindle layout would,
 spaced, bordered and rounded by the fitted look, moves its bar, drops the bar
-fill, scales its type and repaints in the previewed palette. Around it, one
+fill, scales its type and repaints in the previewed palette. Three tiled
+windows cover a desk, so while the background row is being browsed they
+recede to an outline and the wallpaper shows whole, with the bar still over
+it. Around it, one
 tag per slot names what is worn, and says PREVIEW or FITTED when that is the
 case; equipped is the quiet default. The tags hang off one hairline rail per
 column, nothing is drawn between a tag and the desktop, and the tag the

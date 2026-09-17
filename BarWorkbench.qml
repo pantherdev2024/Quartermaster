@@ -467,7 +467,7 @@ Item {
   // The previewed theme's palette, so the rail is the preview and not more
   // chrome. Falls back per key: user themes don't all define every colour.
   function railColor(key, fallback) {
-    var t = root.host ? root.host.stagedThemeObject : null
+    var t = root.host ? root.host.previewThemeObject : null
     var v = (t && t.colors) ? t.colors[key] : undefined
     return (typeof v === "string" && v.length > 0) ? v : fallback
   }
