@@ -152,7 +152,7 @@ row back out of your own config.
   `ENTER` on the card continues to the equip screen. On a loadout, `ENTER`
   fits every slot it recorded and stays, so `D` deploys it from right there;
   `E` (or EDIT on the tile) fits it and continues to the equip screen to
-  change it; `X` (or the cross) deletes it, after asking
+  change it; `R` renames it; `X` (or the cross) deletes it, after asking
 - `TAB` / `SHIFT+TAB` (or `1` `2` `3`) switch equipment category
 - `↑ ↓` move between slots, `← →` browse that slot's inventory
 - BAR MODS has no inventory to browse: `← →` do nothing there and `ENTER`
@@ -470,7 +470,7 @@ SlotPanel.qml      one equipment slot as a row: name block and inventory cells, 
 ItemData.qml       description panel for whatever the cursor is on
 TechFrame.qml      chamfered frame with heavy edge and corner brackets
 scan.sh            inventory as JSON (widgets and bar layout included)
-loadouts.sh        list / save (new, or over an existing id) / delete saved loadouts
+loadouts.sh        list / save (new, or over an existing id) / rename / delete saved loadouts
 safe-io.sh         the only place the scripts read and write files: verified directories, bounded reads, atomic replaces
 deploy.sh          runs a fitting's commands detached from the shell and reports back; refuses any program it does not know
 agent-set.sh       records the default agent without launching it

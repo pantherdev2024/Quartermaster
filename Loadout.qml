@@ -746,9 +746,12 @@ Item {
   // an edit back where it belongs is S then ENTER. Picking NEW asks for a
   // name. Nothing is ever written under a new name without being asked.
   property bool promptOpen: false
-  property string promptMode: "choose"   // "choose" | "name"
+  property string promptMode: "choose"   // "choose" | "name" | "rename"
   property int promptIndex: 0            // 0 is NEW, i is savedLoadouts[i - 1]
   property string pendingLoadoutId: ""
+  // What the name input opens holding: nothing for a new loadout, the
+  // current name for a rename.
+  property string promptInitial: ""
   readonly property var savedLoadouts: root.itemsFor("loadouts").filter(function(i) { return !i.isNew })
 
   function openSavePrompt() {
@@ -758,16 +761,49 @@ Item {
     for (var i = 0; i < root.savedLoadouts.length; i++)
       if (root.savedLoadouts[i].id === current) idx = i + 1
     root.promptIndex = idx
+    root.promptInitial = ""
     root.promptMode = root.savedLoadouts.length > 0 ? "choose" : "name"
     root.promptOpen = true
+  }
+
+  // R on a saved loadout: the same name input, opened holding the current
+  // name. Only the name changes; the id, the fitting it records and its
+  // place in the order stay as they are.
+  property string renameTargetId: ""
+  function requestRenameLoadout(loadoutId) {
+    if (root.promptOpen || root.confirmOpen || root.applying) return
+    var items = root.itemsFor("loadouts")
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].id === loadoutId && !items[i].isNew) {
+        root.renameTargetId = items[i].id
+        root.promptInitial = items[i].name
+        root.promptMode = "rename"
+        root.promptOpen = true
+        return
+      }
+    }
+  }
+  function renameCurrentLoadout() {
+    if (!root.bootOpen || root.bootIndex < 0) return
+    var item = root.bootItems[root.bootIndex]
+    if (item) root.requestRenameLoadout(item.id)
+  }
+  function renameLoadout(id, name) {
+    name = String(name || "").replace(/^\s+|\s+$/g, "")
+    if (!id || !name) return
+    renameProc.command = [root.pluginDir + "/loadouts.sh", "rename", id, name]
+    renameProc.running = true
+    root.promptOpen = false
+    root.statusText = "renaming…"
   }
   function promptMove(delta) {
     var n = root.savedLoadouts.length + 1
     root.promptIndex = (root.promptIndex + delta + n) % n
   }
   function promptAccept() {
+    if (root.promptMode === "rename") { root.renameLoadout(root.renameTargetId, promptInput.text); return }
     if (root.promptMode === "name") { root.saveLoadout(promptInput.text, ""); return }
-    if (root.promptIndex === 0) { root.promptMode = "name"; return }
+    if (root.promptIndex === 0) { root.promptInitial = ""; root.promptMode = "name"; return }
     var target = root.savedLoadouts[root.promptIndex - 1]
     if (target) root.saveLoadout(target.name, target.id)
   }
@@ -775,6 +811,8 @@ Item {
     if (root.promptMode === "name" && root.savedLoadouts.length > 0) root.promptMode = "choose"
     else root.promptOpen = false
   }
+  // The name input owns the keyboard in both of the modes that show it.
+  readonly property bool promptTyping: root.promptMode === "name" || root.promptMode === "rename"
 
   function saveLoadout(name, id) {
     name = String(name || "").replace(/^\s+|\s+$/g, "")
@@ -1057,6 +1095,16 @@ Item {
   }
 
   Process {
+    id: renameProc
+    running: false
+    onExited: function(code) {
+      root.statusText = code === 0 ? "loadout renamed" : "rename failed"
+      root.renameTargetId = ""
+      scanProc.running = true
+    }
+  }
+
+  Process {
     id: scanProc
     command: [root.pluginDir + "/scan.sh"]
     running: false
@@ -1148,7 +1196,7 @@ Item {
       Keys.onPressed: function(event) {
         var k = event.key
         if (root.promptOpen) {
-          if (root.promptMode === "name") return   // the name input owns the keyboard
+          if (root.promptTyping) return   // the name input owns the keyboard
           if (k === Qt.Key_Up || k === Qt.Key_K) root.promptMove(-1)
           else if (k === Qt.Key_Down || k === Qt.Key_J) root.promptMove(1)
           else if (k === Qt.Key_Return || k === Qt.Key_Enter) root.promptAccept()
@@ -1179,6 +1227,7 @@ Item {
           else if (k === Qt.Key_Right || k === Qt.Key_L) root.moveBoot(1, 0)
           else if (k === Qt.Key_Return || k === Qt.Key_Enter) root.activateBoot()
           else if (k === Qt.Key_E) root.editBoot()
+          else if (k === Qt.Key_R) root.renameCurrentLoadout()
           else if (k === Qt.Key_D) root.deploy()
           else if (k === Qt.Key_X || k === Qt.Key_Delete) root.deleteCurrentLoadout()
           else return
@@ -1227,18 +1276,22 @@ Item {
         anchors.fill: parent
         visible: root.promptOpen
         z: 10
+        function focusForMode() {
+          if (root.promptTyping) {
+            promptInput.text = root.promptInitial
+            promptInput.selectAll()
+            promptInput.forceActiveFocus()
+          } else {
+            keyCatcher.forceActiveFocus()
+          }
+        }
         onVisibleChanged: {
           if (!visible) { keyCatcher.forceActiveFocus(); return }
-          if (root.promptMode === "name") { promptInput.text = ""; promptInput.forceActiveFocus() }
-          else keyCatcher.forceActiveFocus()
+          prompt.focusForMode()
         }
         Connections {
           target: root
-          function onPromptModeChanged() {
-            if (!root.promptOpen) return
-            if (root.promptMode === "name") { promptInput.text = ""; promptInput.forceActiveFocus() }
-            else keyCatcher.forceActiveFocus()
-          }
+          function onPromptModeChanged() { if (root.promptOpen) prompt.focusForMode() }
         }
 
         // Scrim: opaque-safe because it is a nested child, but keep it
@@ -1273,7 +1326,8 @@ Item {
             spacing: Style.space(12)
 
             Text {
-              text: "SAVE LOADOUT"
+              textFormat: Text.PlainText
+              text: root.promptMode === "rename" ? "RENAME LOADOUT" : "SAVE LOADOUT"
               color: root.accent
               font.family: root.uiFont
               font.pixelSize: Style.font.title
@@ -1284,7 +1338,9 @@ Item {
             Text {
               textFormat: Text.PlainText
               width: parent.width
-              text: root.promptMode === "name"
+              text: root.promptMode === "rename"
+                ? "A new name for this loadout. What it records, and its place in the order, stay as they are."
+                : root.promptMode === "name"
                 ? "Records the fitting as it stands — staged choices included — under a new name."
                 : "Records the fitting as it stands — staged choices included. Save it over a loadout, or as a new one."
               color: root.muted
@@ -1353,7 +1409,7 @@ Item {
             }
 
             TechFrame {
-              visible: root.promptMode === "name"
+              visible: root.promptTyping
               width: parent.width
               height: Style.space(38)
               chamfer: Style.space(8)
@@ -1390,7 +1446,9 @@ Item {
 
             Text {
               textFormat: Text.PlainText
-              text: root.promptMode === "name"
+              text: root.promptMode === "rename"
+                ? "ENTER  rename       ESC  cancel"
+                : root.promptMode === "name"
                 ? "ENTER  save       ESC  " + (root.savedLoadouts.length > 0 ? "back" : "cancel")
                 : "↑↓  choose       ENTER  save       ESC  cancel"
               color: root.muted
@@ -1782,7 +1840,7 @@ Item {
             if (root.bootOpen) {
               var boot = [["←→↑↓", "navigate"]]
               if (root.bootIndex < 0) boot.push(["ENTER", "equip"])
-              else boot = boot.concat([["ENTER", "fit"], ["E", "edit"], ["X", "delete"]])
+              else boot = boot.concat([["ENTER", "fit"], ["E", "edit"], ["R", "rename"], ["X", "delete"]])
               if (root.dirty) boot.push(["D", "deploy"])
               return boot.concat([["ESC", root.dirty ? "discard" : "close"]])
             }

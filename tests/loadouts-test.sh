@@ -66,6 +66,18 @@ equals "overwritten is newest" "$("$LOADOUTS" list | jq -r '.[0].id')" "desk-set
 "$LOADOUTS" save "Escape" '{}' '../escape' 2>/dev/null && fail "an unsafe id should be refused"
 [[ ! -e "$DIR/never-saved.json" && ! -e "$DIR/../escape.json" ]] || fail "a refused overwrite wrote a file"
 
+# Renaming changes the name and nothing else: same id, same slots, same time,
+# so the card keeps its place in the order and the fitting it records.
+was=$(jq -c '{id, slots, savedAt}' "$DIR/desk-setup.json")
+equals "rename prints the id" "$("$LOADOUTS" rename desk-setup "Desk, renamed")" "desk-setup"
+equals "rename takes the name" "$(jq -r '.name' "$DIR/desk-setup.json")" "Desk, renamed"
+equals "rename keeps the rest" "$(jq -c '{id, slots, savedAt}' "$DIR/desk-setup.json")" "$was"
+"$LOADOUTS" rename never-saved "Ghost" 2>/dev/null && fail "renaming a missing id should fail"
+"$LOADOUTS" rename '../escape' "Escape" 2>/dev/null && fail "renaming an unsafe id should be refused"
+"$LOADOUTS" rename desk-setup '   ' 2>/dev/null && fail "renaming to a blank name should fail"
+equals "a refused rename changes nothing" "$(jq -r '.name' "$DIR/desk-setup.json")" "Desk, renamed"
+[[ ! -e "$DIR/never-saved.json" ]] || fail "a refused rename wrote a file"
+
 # list is newest first, which is the order the dock draws.
 sleep 1
 "$LOADOUTS" save "Newest" '{}' >/dev/null

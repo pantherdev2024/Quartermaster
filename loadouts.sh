@@ -4,6 +4,7 @@
 #
 #   loadouts.sh list                      -> JSON array, newest first
 #   loadouts.sh save <name> <slots> [id]  -> writes the file, prints its id
+#   loadouts.sh rename <id> <name>        -> a new name, everything else kept
 #   loadouts.sh delete <id>
 #
 # save with an id overwrites that loadout in place -- same id, the name
@@ -184,6 +185,24 @@ case "${1:-}" in
     io_publish "$dest" "$payload" || exit 1
     echo "$id"
     ;;
+  rename)
+    # A rename keeps the id, the slots and the time: the file is read back
+    # through the same bounds the listing uses, so a loadout that would not
+    # be listed is not renamed either, and only the name changes.
+    ensure_store || exit 1
+    id="${2:?id required}"
+    name="${3:?name required}"
+    is_safe_id "$id" || { echo "refusing unsafe loadout id: $id" >&2; exit 2; }
+    [[ -n ${name//[[:space:]]/} ]] || { echo "a loadout needs a name" >&2; exit 1; }
+    dest="$dir/$id.json"
+    [[ -f $dest && ! -L $dest ]] || { echo "no such loadout: $id" >&2; exit 1; }
+    current="$(io_read "$dest" "$MAX_FILE_BYTES" | jq -c . 2>/dev/null | head -n 1)" || exit 1
+    jq -e 'type == "object" and (.slots | type) == "object"' <<<"$current" >/dev/null 2>&1 \
+      || { echo "not a loadout: $id" >&2; exit 1; }
+    payload="$(jq -c --arg name "$name" '.name = $name' <<<"$current")" || exit 1
+    io_publish "$dest" "$payload" || exit 1
+    echo "$id"
+    ;;
   delete)
     ensure_store || exit 1
     id="${2:?id required}"
@@ -193,7 +212,7 @@ case "${1:-}" in
     rm -f -- "$dir/$id.json"
     ;;
   *)
-    echo "usage: loadouts.sh list | save <name> <slots-json> [id] | delete <id>" >&2
+    echo "usage: loadouts.sh list | save <name> <slots-json> [id] | rename <id> <name> | delete <id>" >&2
     exit 2
     ;;
 esac
