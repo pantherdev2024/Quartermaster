@@ -175,8 +175,21 @@ Item {
         // cells at most, a slot the cursor has never visited can still open
         // scrolled away from its equipped cell, so re-reveal whenever the
         // row's geometry or its stock changes and not only as the cursor
-        // moves. callLater so the view has laid the cells out first.
-        function reveal() { positionViewAtIndex(currentIndex, ListView.Contain) }
+        // moves. callLater so the view has laid the cells out first. Then
+        // settle on a cell boundary: the cells settle their size after the
+        // first reveal, and Contain leaves a view that already holds the
+        // cell where it is, so a row could sit a fraction of a cell along
+        // and show a sliver of its neighbours at both ends. The view is a
+        // whole number of cells wide, so a boundary at one end is one at
+        // the other, and rounding moves the current cell at most three
+        // places, which keeps it in view.
+        function reveal() {
+          positionViewAtIndex(currentIndex, ListView.Contain)
+          var step = root.cellSize + spacing
+          if (step <= 0 || contentWidth <= width) return
+          var snapped = Math.round(contentX / step) * step
+          contentX = Math.max(0, Math.min(snapped, contentWidth - width))
+        }
         onCurrentIndexChanged: Qt.callLater(reveal)
         onWidthChanged: Qt.callLater(reveal)
         onCountChanged: Qt.callLater(reveal)
