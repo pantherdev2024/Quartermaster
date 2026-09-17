@@ -6,7 +6,7 @@ watch a miniature desktop re-fit itself as you browse, fit what you like, then
 deploy the whole fitting for real. Save a fitting as a loadout and swap
 between them in one move.
 
-![The Quartermaster equip screen, with the Style category open](preview.png)
+![The Quartermaster equip screen, with the Style category open and a theme being browsed: the mock desktop already wears it](preview.png)
 
 ## Install
 
